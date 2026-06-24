@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import os
 from datetime import datetime, timezone
 from typing import AsyncIterator
 
-from .tools import save_results, score_product
+# Import the pure, SDK-free core directly so mock mode never loads
+# claude_agent_sdk (that's the whole point of mock mode).
+from .core import compute_score, write_results
 
 # Generic candidate templates. {cat} is filled with the user's category so the
 # mock feels relevant to whatever was typed.
@@ -102,8 +103,7 @@ async def run_stream_mock(
     await pause()
     scored = []
     for name, sig, sub in analysed:
-        res = await score_product.handler({"name": name, **sub})
-        data = json.loads(res["content"][0]["text"])
+        data = compute_score(name=name, **sub)
         scored.append({
             "name": name,
             "score": data["score"],
@@ -119,10 +119,8 @@ async def run_stream_mock(
     scored.sort(key=lambda p: p["score"], reverse=True)
     top_products = scored[:top]
 
-    # 4) save real JSON via the real tool
-    await save_results.handler({
-        "category": category, "products": top_products, "output_dir": output_dir,
-    })
+    # 4) save real JSON via the real (SDK-free) writer
+    write_results(category=category, products=top_products, output_dir=output_dir)
     yield {"type": "tool", "name": "mcp__research-tools__save_results",
            "agent": "lead", "summary": f"save: {len(top_products)} products"}
     await pause()

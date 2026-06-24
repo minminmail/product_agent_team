@@ -27,7 +27,6 @@ from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .events import run_stream
 from .mock import run_stream_mock
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -65,6 +64,9 @@ async def research(
                                    "to run offline with no key or credits.",
                     })
                     return
+                # Import the SDK-backed pipeline lazily so mock mode never
+                # requires claude_agent_sdk to be installed.
+                from .events import run_stream
                 async for ev in run_stream(category, top, REPORTS_DIR, model):
                     yield _sse(ev)
         except Exception as exc:  # never leave the stream hanging

@@ -8,24 +8,25 @@ deterministic, transparent formula and to persist the final results to disk.
 from __future__ import annotations
 
 import json
-import os
-from datetime import datetime, timezone
 from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
-# Weights for the opportunity score. Tweak to change what the team rewards.
-SCORE_WEIGHTS = {
-    "demand": 0.30,        # how strong / growing is buyer interest
-    "growth": 0.25,        # momentum of the trend
-    "margin": 0.15,        # room for healthy margins
-    "competition": 0.20,   # inverse: low competition scores high
-    "feasibility": 0.10,   # how easy to source / build / launch
-}
+# Pure scoring/save logic lives in core.py (SDK-free) so the offline mock
+# pipeline can reuse it without importing claude_agent_sdk. Re-exported here for
+# backwards compatibility.
+from .core import SCORE_WEIGHTS, compute_score, write_results
 
-
-def _clamp(value: float, low: float = 0.0, high: float = 10.0) -> float:
-    return max(low, min(high, value))
+__all__ = [
+    "SCORE_WEIGHTS",
+    "compute_score",
+    "write_results",
+    "score_product",
+    "save_results",
+    "research_tools_server",
+    "TOOL_SCORE",
+    "TOOL_SAVE",
+]
 
 
 @tool(
@@ -44,46 +45,14 @@ def _clamp(value: float, low: float = 0.0, high: float = 10.0) -> float:
     },
 )
 async def score_product(args: dict[str, Any]) -> dict[str, Any]:
-    demand = _clamp(float(args.get("demand", 0)))
-    growth = _clamp(float(args.get("growth", 0)))
-    margin = _clamp(float(args.get("margin", 0)))
-    competition = _clamp(float(args.get("competition", 0)))
-    feasibility = _clamp(float(args.get("feasibility", 0)))
-
-    # Competition is a cost, not a benefit: invert it (10 = no competition).
-    competition_inv = 10.0 - competition
-
-    weighted = (
-        demand * SCORE_WEIGHTS["demand"]
-        + growth * SCORE_WEIGHTS["growth"]
-        + margin * SCORE_WEIGHTS["margin"]
-        + competition_inv * SCORE_WEIGHTS["competition"]
-        + feasibility * SCORE_WEIGHTS["feasibility"]
+    payload = compute_score(
+        name=args.get("name", "unnamed"),
+        demand=args.get("demand", 0),
+        growth=args.get("growth", 0),
+        margin=args.get("margin", 0),
+        competition=args.get("competition", 0),
+        feasibility=args.get("feasibility", 0),
     )
-    score = round(weighted * 10, 1)  # scale 0-10 -> 0-100
-
-    if score >= 75:
-        verdict = "Strong bet"
-    elif score >= 60:
-        verdict = "Promising"
-    elif score >= 45:
-        verdict = "Watch"
-    else:
-        verdict = "Pass"
-
-    payload = {
-        "name": args.get("name", "unnamed"),
-        "score": score,
-        "verdict": verdict,
-        "breakdown": {
-            "demand": demand,
-            "growth": growth,
-            "margin": margin,
-            "competition": competition,
-            "competition_inverted": competition_inv,
-            "feasibility": feasibility,
-        },
-    }
     return {
         "content": [
             {"type": "text", "text": json.dumps(payload, indent=2)}
@@ -103,22 +72,12 @@ async def score_product(args: dict[str, Any]) -> dict[str, Any]:
     },
 )
 async def save_results(args: dict[str, Any]) -> dict[str, Any]:
-    category = args.get("category", "general")
     products = args.get("products", [])
-    output_dir = args.get("output_dir") or os.getcwd()
-    os.makedirs(output_dir, exist_ok=True)
-
-    record = {
-        "category": category,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "product_count": len(products),
-        "products": products,
-    }
-    safe = "".join(c if c.isalnum() else "_" for c in category).strip("_").lower()
-    path = os.path.join(output_dir, f"predictions_{safe or 'general'}.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(record, f, indent=2, ensure_ascii=False)
-
+    path = write_results(
+        category=args.get("category", "general"),
+        products=products,
+        output_dir=args.get("output_dir"),
+    )
     return {
         "content": [
             {"type": "text", "text": f"Saved {len(products)} predictions to {path}"}

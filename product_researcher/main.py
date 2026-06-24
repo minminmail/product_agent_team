@@ -24,7 +24,6 @@ try:
 except Exception:  # dotenv is optional
     pass
 
-from .events import run_stream
 from .mock import run_stream_mock
 
 
@@ -33,8 +32,13 @@ async def run(category: str, top: int, output_dir: str, model: str, mock: bool =
     tag = " [MOCK]" if mock else ""
     print(f"\n🔎 Researching category: {category!r} (top {top}){tag}\n", flush=True)
 
-    stream = run_stream_mock(category, top, output_dir, model) if mock \
-        else run_stream(category, top, output_dir, model)
+    if mock:
+        stream = run_stream_mock(category, top, output_dir, model)
+    else:
+        # Import the SDK-backed pipeline lazily so mock mode never requires
+        # claude_agent_sdk to be installed.
+        from .events import run_stream
+        stream = run_stream(category, top, output_dir, model)
     async for ev in stream:
         kind = ev["type"]
         if kind == "subagent":

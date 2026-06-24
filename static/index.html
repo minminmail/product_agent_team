@@ -31,6 +31,13 @@
   button{background:var(--accent);color:#06131f;border:0;border-radius:8px;padding:10px 16px;font-weight:650;
        cursor:pointer;font-size:14px;width:100%}
   button:disabled{opacity:.5;cursor:not-allowed}
+  .toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:6px}
+  .toggle .seg{width:50%;background:var(--bg);color:var(--muted);border:0;border-radius:0;
+       padding:9px 12px;font-weight:600;font-size:13px;cursor:pointer}
+  .toggle .seg:hover{color:var(--text)}
+  .toggle .seg.active{background:var(--accent);color:#06131f}
+  .toggle .seg.active#seg-mock{background:var(--amber);color:#0d1117}
+  .mode-hint{font-size:11px;color:var(--muted);margin-bottom:12px}
   .team{display:flex;gap:8px;padding:12px 20px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--panel)}
   .agent-chip{display:flex;align-items:center;gap:7px;background:var(--chip);border:1px solid var(--border);
        border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted);transition:.2s}
@@ -94,10 +101,12 @@
           </select>
         </div>
       </div>
-      <label style="display:flex;align-items:center;gap:8px;margin:4px 0 12px;text-transform:none;letter-spacing:0;cursor:pointer">
-        <input type="checkbox" id="mock" style="width:auto" />
-        <span style="color:var(--text)">Mock mode — run offline, no API key or credits</span>
-      </label>
+      <label style="margin-top:4px">Run mode</label>
+      <div class="toggle" id="modeToggle">
+        <button type="button" class="seg active" id="seg-live">⚡ Live</button>
+        <button type="button" class="seg" id="seg-mock">🧪 Mock</button>
+      </div>
+      <div class="mode-hint" id="modeHint">Live — uses your API key &amp; credits for real research.</div>
       <button id="run">Run research</button>
     </div>
 
@@ -129,7 +138,18 @@ const AGENTS = [
 ];
 const $ = s => document.querySelector(s);
 const teamEl = $("#team"), tl = $("#timeline"), reportEl = $("#report");
-let es = null, reportBuf = "", running = false;
+let es = null, reportBuf = "", running = false, mockMode = false;
+
+function setMode(mock){
+  mockMode = mock;
+  $("#seg-live").classList.toggle("active", !mock);
+  $("#seg-mock").classList.toggle("active", mock);
+  $("#modeHint").textContent = mock
+    ? "Mock — fully offline, no API key or credits used."
+    : "Live — uses your API key & credits for real research.";
+}
+$("#seg-live").addEventListener("click", ()=>{ if(!running) setMode(false); });
+$("#seg-mock").addEventListener("click", ()=>{ if(!running) setMode(true); });
 
 function renderTeam(){
   teamEl.innerHTML = "";
@@ -171,7 +191,7 @@ async function checkHealth(){
 function start(){
   if(running) return;
   const cat=$("#cat").value.trim(); if(cat.length<2){$("#cat").focus();return;}
-  const top=$("#top").value||10, model=$("#model").value, mock=$("#mock").checked;
+  const top=$("#top").value||10, model=$("#model").value, mock=mockMode;
   running=true; reportBuf=""; clearAgents();
   $("#run").disabled=true; $("#run").innerHTML='<span class="spin"></span> Running…';
   $("#status").textContent="running"; $("#links").innerHTML="";
