@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Product Researcher — Agent Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --border:#2a3340;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --accent2:#bc8cff;
+    --green:#3fb950; --amber:#d29922; --red:#f85149; --chip:#21262d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--text)}
+  header{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+  header h1{font-size:17px;margin:0;font-weight:650}
+  header .sub{color:var(--muted);font-size:12px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .dot.ok{background:var(--green)} .dot.bad{background:var(--red)}
+  .wrap{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.2fr);gap:0;height:calc(100vh - 61px)}
+  @media(max-width:900px){.wrap{grid-template-columns:1fr;height:auto}}
+  .left{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+  .controls{padding:16px 20px;border-bottom:1px solid var(--border);background:var(--panel)}
+  .row{display:flex;gap:10px;margin-bottom:10px}
+  label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+  input,select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+       border-radius:8px;padding:9px 11px;font-size:14px;outline:none}
+  input:focus,select:focus{border-color:var(--accent)}
+  button{background:var(--accent);color:#06131f;border:0;border-radius:8px;padding:10px 16px;font-weight:650;
+       cursor:pointer;font-size:14px;width:100%}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .team{display:flex;gap:8px;padding:12px 20px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--panel)}
+  .agent-chip{display:flex;align-items:center;gap:7px;background:var(--chip);border:1px solid var(--border);
+       border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted);transition:.2s}
+  .agent-chip .pip{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+  .agent-chip.active{color:var(--text);border-color:var(--accent2);background:#241d33}
+  .agent-chip.active .pip{background:var(--accent2);box-shadow:0 0 0 3px rgba(188,140,255,.2)}
+  .agent-chip.done .pip{background:var(--green)}
+  .timeline{flex:1;overflow:auto;padding:14px 20px;min-height:0}
+  .ev{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:13px}
+  .ev .ic{flex:0 0 22px;text-align:center}
+  .ev .body{flex:1;min-width:0}
+  .ev .meta{color:var(--muted);font-size:11px}
+  .ev.sub .body{font-weight:600;color:var(--accent2)}
+  .ev.tool code{background:var(--panel2);padding:1px 6px;border-radius:5px;color:var(--accent);font-size:12px}
+  .ev.err{color:var(--red)}
+  .ev .txt{color:var(--muted);white-space:pre-wrap;word-break:break-word}
+  .right{display:flex;flex-direction:column;min-height:0;background:var(--panel)}
+  .right .bar{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  .stat{font-size:12px;color:var(--muted)} .stat b{color:var(--text);font-weight:600}
+  .report{flex:1;overflow:auto;padding:6px 26px 40px;min-height:0}
+  .report h1{font-size:22px;border-bottom:1px solid var(--border);padding-bottom:8px}
+  .report h2{font-size:16px;margin-top:24px}
+  .report table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13px}
+  .report th,.report td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+  .report th{background:var(--panel2)}
+  .report a{color:var(--accent)}
+  .report code{background:var(--panel2);padding:1px 5px;border-radius:4px}
+  .empty{color:var(--muted);padding:40px;text-align:center}
+  .links a{color:var(--accent);font-size:12px;margin-right:14px;text-decoration:none}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);
+       border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="health"></span>
+  <h1>Product Researcher</h1>
+  <span class="sub">multi-agent market scan &amp; prediction · Claude Agent SDK</span>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: controls + live timeline -->
+  <div class="left">
+    <div class="controls">
+      <div>
+        <label for="cat">Product category / market</label>
+        <input id="cat" placeholder="e.g. smart home gadgets" value="smart home gadgets" />
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div style="flex:1">
+          <label for="top">Top N</label>
+          <input id="top" type="number" min="1" max="30" value="8" />
+        </div>
+        <div style="flex:2">
+          <label for="model">Lead model</label>
+          <select id="model">
+            <option value="sonnet">sonnet</option>
+            <option value="opus">opus</option>
+            <option value="haiku">haiku</option>
+          </select>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin:4px 0 12px;text-transform:none;letter-spacing:0;cursor:pointer">
+        <input type="checkbox" id="mock" style="width:auto" />
+        <span style="color:var(--text)">Mock mode — run offline, no API key or credits</span>
+      </label>
+      <button id="run">Run research</button>
+    </div>
+
+    <div class="team" id="team"></div>
+    <div class="timeline" id="timeline">
+      <div class="empty">Enter a category and hit <b>Run research</b> to watch the team work.</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: final report -->
+  <div class="right">
+    <div class="bar">
+      <span class="stat">Status: <b id="status">idle</b></span>
+      <span class="stat" id="s-turns" style="display:none">Turns: <b>—</b></span>
+      <span class="stat" id="s-time" style="display:none">Time: <b>—</b></span>
+      <span class="stat" id="s-cost" style="display:none">Cost: <b>—</b></span>
+      <span class="links" id="links" style="margin-left:auto"></span>
+    </div>
+    <div class="report" id="report"><div class="empty">The final ranked report appears here.</div></div>
+  </div>
+</div>
+
+<script>
+const AGENTS = [
+  ["lead","🧭 lead"],
+  ["trend-scout","🔭 trend-scout"],
+  ["market-analyst","📊 market-analyst"],
+  ["predictor","🎯 predictor"],
+];
+const $ = s => document.querySelector(s);
+const teamEl = $("#team"), tl = $("#timeline"), reportEl = $("#report");
+let es = null, reportBuf = "", running = false;
+
+function renderTeam(){
+  teamEl.innerHTML = "";
+  AGENTS.forEach(([id,label])=>{
+    const d=document.createElement("div");
+    d.className="agent-chip"; d.id="ag-"+id;
+    d.innerHTML=`<span class="pip"></span>${label}`;
+    teamEl.appendChild(d);
+  });
+}
+function setAgent(id,state){
+  const el=$("#ag-"+id); if(!el)return;
+  el.classList.remove("active","done");
+  if(state) el.classList.add(state);
+}
+function clearAgents(){AGENTS.forEach(([id])=>setAgent(id,null));}
+
+function addEv(cls, ic, html){
+  if(tl.querySelector(".empty")) tl.innerHTML="";
+  const d=document.createElement("div");
+  d.className="ev "+cls;
+  d.innerHTML=`<div class="ic">${ic}</div><div class="body">${html}</div>`;
+  tl.appendChild(d); tl.scrollTop=tl.scrollHeight;
+  return d;
+}
+const esc = s => (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+function fmtMs(ms){ if(!ms) return "—"; const s=ms/1000; return s<60?s.toFixed(1)+"s":(s/60).toFixed(1)+"m"; }
+
+async function checkHealth(){
+  try{
+    const r=await fetch("/api/health"); const j=await r.json();
+    const h=$("#health");
+    h.className="dot "+(j.has_key?"ok":"bad");
+    h.title=j.has_key?"API key detected":"ANTHROPIC_API_KEY missing on server";
+  }catch(e){ $("#health").className="dot bad"; }
+}
+
+function start(){
+  if(running) return;
+  const cat=$("#cat").value.trim(); if(cat.length<2){$("#cat").focus();return;}
+  const top=$("#top").value||10, model=$("#model").value, mock=$("#mock").checked;
+  running=true; reportBuf=""; clearAgents();
+  $("#run").disabled=true; $("#run").innerHTML='<span class="spin"></span> Running…';
+  $("#status").textContent="running"; $("#links").innerHTML="";
+  ["s-turns","s-time","s-cost"].forEach(i=>$("#"+i).style.display="none");
+  tl.innerHTML=""; reportEl.innerHTML='<div class="empty">Working… the report will stream in.</div>';
+  addEv("","▶",`Researching <b>${esc(cat)}</b> · top ${esc(top)} · ${esc(model)}${mock?" · <b>MOCK</b>":""}`);
+
+  const url=`/api/research?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&mock=${mock}`;
+  es=new EventSource(url);
+  es.onmessage= e=>handle(JSON.parse(e.data));
+  es.onerror=()=>{ if(running){addEv("err","⚠","Connection lost.");finish();} };
+}
+
+let activeSub=null;
+function handle(ev){
+  switch(ev.type){
+    case "start": setAgent("lead","active"); break;
+    case "subagent":
+      if(activeSub) setAgent(activeSub,"done");
+      activeSub=ev.name; setAgent("lead","active"); setAgent(ev.name,"active");
+      addEv("sub","➤",`Delegated to <b>${esc(ev.name)}</b>`+(ev.task?`<div class="meta">${esc(ev.task)}</div>`:""));
+      break;
+    case "tool":
+      addEv("tool","🔧",`<code>${esc(ev.name.replace(/^mcp__[^_]+__/,""))}</code> <span class="meta">${esc(ev.summary)}</span>`);
+      break;
+    case "thinking": break;
+    case "text":
+      if(ev.agent==="lead"){ reportBuf+=ev.text; renderReport(); }
+      else { addEv("","💬",`<span class="txt">${esc(ev.text.slice(0,300))}</span>`); }
+      break;
+    case "result":
+      reportBuf = ev.report || reportBuf; renderReport(true);
+      $("#status").textContent= ev.is_error ? "finished with errors" : "complete";
+      showStat("s-turns", ev.num_turns); showStat("s-time", fmtMs(ev.duration_ms));
+      showStat("s-cost", ev.cost_usd!=null ? "$"+Number(ev.cost_usd).toFixed(4) : "—");
+      addLinks(); addEv("","✅","Done.");
+      AGENTS.forEach(([id])=>setAgent(id,"done"));
+      break;
+    case "error":
+      addEv("err","❌",esc(ev.message)); $("#status").textContent="error"; break;
+    case "done": finish(); break;
+  }
+}
+function showStat(id,val){ const e=$("#"+id); e.style.display=""; e.querySelector("b").textContent=val??"—"; }
+function renderReport(){
+  if(!reportBuf.trim()) return;
+  reportEl.innerHTML = marked.parse(reportBuf);
+}
+function slug(s){return s.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");}
+function addLinks(){
+  const c=slug($("#cat").value.trim());
+  $("#links").innerHTML =
+    `<a href="/api/report/report_${c}.md" target="_blank">↓ report.md</a>`+
+    `<a href="/api/report/predictions_${c}.json" target="_blank">↓ predictions.json</a>`;
+}
+function finish(){
+  running=false; if(es){es.close();es=null;}
+  $("#run").disabled=false; $("#run").textContent="Run research";
+}
+
+renderTeam(); checkHealth();
+$("#run").addEventListener("click", start);
+$("#cat").addEventListener("keydown", e=>{ if(e.key==="Enter") start(); });
+</script>
+</body>
+</html>
