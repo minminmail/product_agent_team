@@ -1,10 +1,12 @@
 """Agent team definitions for the product researcher.
 
-The team is a lead orchestrator plus three specialist subagents:
+The team is a lead orchestrator plus four specialist subagents:
 
   trend-scout     -> finds emerging products / signals via web search
   market-analyst  -> sizes demand, competition, margins for each candidate
   predictor       -> scores candidates and predicts winners
+  sourcing-scout  -> for the top products, finds the best-quality, EU-certified
+                     manufacturers/suppliers and scores them
 
 The lead agent (configured in main.py) delegates to these subagents via the
 built-in Agent (Task) tool, then assembles the final report.
@@ -14,7 +16,7 @@ from __future__ import annotations
 
 from claude_agent_sdk import AgentDefinition
 
-from .tools import TOOL_SAVE, TOOL_SCORE
+from .tools import TOOL_SAVE, TOOL_SCORE, TOOL_SCORE_SUPPLIER
 
 # Tools the whole team is allowed to reach for.
 WEB_TOOLS = ["WebSearch", "WebFetch"]
@@ -76,6 +78,36 @@ AGENTS: dict[str, AgentDefinition] = {
             "keep its supporting evidence/source. Return the full ranked list."
         ),
         tools=[TOOL_SCORE],
+        model="sonnet",
+    ),
+    "sourcing-scout": AgentDefinition(
+        description=(
+            "Finds and quality-ranks real manufacturers/suppliers for the top "
+            "predicted products. Use last, after the predictor has ranked products."
+        ),
+        prompt=(
+            "You are a meticulous sourcing specialist. You are given the top few "
+            "predicted products. For EACH product, use web search to find real, "
+            "specific manufacturers or suppliers that could produce/supply it.\n\n"
+            "Quality matters far more than quantity. Prioritise suppliers that are:\n"
+            "  • TRUSTWORTHY — strong reputation, verifiable reviews, years in "
+            "business, real company presence (not anonymous listings).\n"
+            "  • HIGH QUALITY — good build quality, quality-control processes, "
+            "low defect/complaint history.\n"
+            "  • EU-CERTIFIED — hold valid, relevant certifications, especially "
+            "EU ones: CE marking, ISO 9001, REACH, RoHS, EN standards, GS, etc. "
+            "Capture which certifications each supplier actually holds.\n\n"
+            "For each supplier capture: company name, country, the product it "
+            "supplies, the certifications it holds, a one-line reputation note, "
+            "and a cited source URL. Then call the "
+            f"`{TOOL_SCORE_SUPPLIER}` tool with five 0-10 sub-scores (quality, "
+            "reputation, certification, reliability, price) to get a consistent "
+            "0-100 supplier-quality score — never invent the score yourself.\n\n"
+            "Rank each product's suppliers by score (highest first) and return up "
+            "to 10 per product. Do not fabricate companies, certifications, or "
+            "sources — if you cannot verify a supplier, leave it out."
+        ),
+        tools=WEB_TOOLS + [TOOL_SCORE_SUPPLIER],
         model="sonnet",
     ),
 }

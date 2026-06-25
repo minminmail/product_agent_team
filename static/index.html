@@ -135,6 +135,7 @@ const AGENTS = [
   ["trend-scout","🔭 trend-scout"],
   ["market-analyst","📊 market-analyst"],
   ["predictor","🎯 predictor"],
+  ["sourcing-scout","🏭 sourcing-scout"],
 ];
 const $ = s => document.querySelector(s);
 const teamEl = $("#team"), tl = $("#timeline"), reportEl = $("#report");
@@ -245,7 +246,8 @@ function addLinks(){
   const c=slug($("#cat").value.trim());
   $("#links").innerHTML =
     `<a href="/api/report/report_${c}.md" target="_blank">↓ report.md</a>`+
-    `<a href="/api/report/predictions_${c}.json" target="_blank">↓ predictions.json</a>`;
+    `<a href="/api/report/predictions_${c}.json" target="_blank">↓ predictions.json</a>`+
+    `<a href="/api/report/suppliers_${c}.json" target="_blank">↓ suppliers.json</a>`;
 }
 function finish(){
   running=false; if(es){es.close();es=null;}

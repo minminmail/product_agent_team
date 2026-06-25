@@ -4,15 +4,16 @@ A small **multi-agent team** (Python + [Claude Agent SDK](https://platform.claud
 
 ## The team
 
-A lead orchestrator delegates to three specialist subagents:
+A lead orchestrator delegates to four specialist subagents:
 
 | Agent | Role |
 |-------|------|
 | **trend-scout** | Web-searches for 8–15 specific emerging products + rising signals + sources |
 | **market-analyst** | Scores each candidate 0–10 on demand, growth, margin, competition, feasibility |
 | **predictor** | Turns sub-scores into a deterministic 0–100 opportunity score and ranks them |
+| **sourcing-scout** | For the top 3 products, finds the best-quality, EU-certified manufacturers/suppliers and ranks up to 10 per product |
 
-The opportunity score is computed by an in-process **custom tool** (`score_product`) so ranking is transparent and consistent — not vibes. A second tool (`save_results`) writes the JSON output.
+Scoring is done by in-process **custom tools** so ranking is transparent and consistent — not vibes. `score_product` computes the 0–100 opportunity score; `score_supplier` computes a 0–100 supplier-quality score weighting **quality, reputation, EU certification (CE/ISO/REACH/RoHS…), reliability and price**. Two more tools (`save_results`, `save_suppliers`) write the JSON outputs.
 
 ## Setup
 
@@ -53,8 +54,9 @@ python -m product_researcher.main "eco-friendly pet products" --top 8 --out ./re
 
 Output (written to `--out`, default `./reports`; the dashboard writes to `./reports`):
 
-- `report_<category>.md` — executive summary + ranked table + methodology
+- `report_<category>.md` — executive summary + ranked table + **top suppliers** per product + methodology
 - `predictions_<category>.json` — structured predictions for downstream use
+- `suppliers_<category>.json` — per-product supplier shortlists (name, country, score, tier, certifications, source)
 
 ## Test it locally
 
@@ -115,7 +117,7 @@ Mock runs use the real scoring/save tools, so the generated `report_*.md` and `p
 **Smoke test (no API credits used)** — confirm everything imports and wires up:
 
 ```bash
-python -c "from product_researcher import server, events, agents, tools, mock; print('imports OK')"
+python -c "from product_researcher import server, events, agents, tools, core, mock; print('imports OK')"
 ```
 
 **Notes & troubleshooting**
@@ -132,24 +134,31 @@ your category
      │
      ▼
   ┌─────────────┐  delegates (Agent tool)
-  │  LEAD AGENT │ ───────────────────────────────┐
-  └─────────────┘                                 │
-     │  1                  2                  3    ▼
-     ▼               ▼                  ▼
- trend-scout → market-analyst → predictor → score_product (tool)
- (WebSearch)   (WebSearch)       (scoring)        │
-                                                  ▼
-                                   save_results (JSON) + Markdown report
+  │  LEAD AGENT │ ───────────────────────────────────────────┐
+  └─────────────┘                                             │
+     │  1              2              3            4           ▼
+     ▼            ▼            ▼            ▼      score_product +
+ trend-scout → market-analyst → predictor → sourcing-scout    score_supplier
+ (WebSearch)   (WebSearch)     (scoring)   (WebSearch +        (tools)
+                                            supplier scoring)      │
+                                                                   ▼
+                              save_results + save_suppliers (JSON) + Markdown report
 ```
+
+**Stage 1** (trend-scout → market-analyst → predictor) finds and ranks the products.
+**Stage 2** (sourcing-scout) takes the top 3 and finds the best-quality, EU-certified
+suppliers for each.
 
 ## Project layout
 
 ```
 agent_team/
 ├─ product_researcher/
-│  ├─ tools.py     # custom in-process tools: score_product, save_results
-│  ├─ agents.py    # the 3 subagent definitions
+│  ├─ core.py      # pure, SDK-free scoring/save logic (shared by tools + mock)
+│  ├─ tools.py     # SDK tool wrappers: score_product, save_results, score_supplier, save_suppliers
+│  ├─ agents.py    # the 4 subagent definitions
 │  ├─ events.py    # shared pipeline + SDK-message → UI-event translator
+│  ├─ mock.py      # fully offline pipeline (no SDK / API key needed)
 │  ├─ main.py      # CLI
 │  └─ server.py    # FastAPI dashboard (SSE)
 ├─ static/index.html  # single-file dashboard frontend
@@ -159,7 +168,8 @@ agent_team/
 
 ## Tuning
 
-- **Scoring weights** live in `product_researcher/tools.py` (`SCORE_WEIGHTS`) — change what the team rewards.
+- **Scoring weights** live in `product_researcher/core.py` — `SCORE_WEIGHTS` (product opportunity) and `SUPPLIER_WEIGHTS` (supplier quality). Change what the team rewards.
+- **How many products get sourced** and **suppliers per product** live in `product_researcher/events.py` (`SOURCE_TOP_PRODUCTS`, `SUPPLIERS_PER_PRODUCT`).
 - **Agent behaviour** lives in `product_researcher/agents.py` — edit prompts, models, or add a new subagent.
 - **Pipeline / lead brief** lives in `product_researcher/events.py` (`build_lead_prompt`, `run_stream`).
 - **Dashboard** is `product_researcher/server.py` + `static/index.html`.
