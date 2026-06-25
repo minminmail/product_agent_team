@@ -39,8 +39,9 @@ __all__ = [
     "certs like CE, ISO 9001, REACH, RoHS — 10 = full verifiable certs), "
     "reliability (on-time delivery, communication), price (value for money / "
     "reasonable MOQ). Prioritises trustworthy, high-quality, EU-certified "
-    "suppliers. Pass product, country and the actual certifications list for "
-    "display. Always use this tool — never invent the score.",
+    "suppliers. Pass product, country, the actual certifications list, and the "
+    "supplier's contact details (phone, email, address, hours, website) for the "
+    "shortlist. Always use this tool — never invent the score.",
     {
         "name": str,
         "quality": float,
@@ -51,6 +52,11 @@ __all__ = [
         "product": str,
         "country": str,
         "certifications": list,
+        "phone": str,
+        "email": str,
+        "address": str,
+        "hours": str,
+        "website": str,
     },
 )
 async def score_supplier(args: dict[str, Any]) -> dict[str, Any]:
@@ -64,6 +70,11 @@ async def score_supplier(args: dict[str, Any]) -> dict[str, Any]:
         product=args.get("product", ""),
         country=args.get("country", ""),
         certifications=args.get("certifications") or [],
+        phone=args.get("phone", ""),
+        email=args.get("email", ""),
+        address=args.get("address", ""),
+        hours=args.get("hours", ""),
+        website=args.get("website", ""),
     )
     return {
         "content": [

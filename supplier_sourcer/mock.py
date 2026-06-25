@@ -39,6 +39,33 @@ _SUPPLIER_FORMS = [
     ("Alpine {cat} AG", "Austria", ["CE", "ISO 9001", "EN 71"]),
 ]
 
+# Country -> (city, phone dial code, domain TLD) for plausible mock contacts.
+_COUNTRY_META = {
+    "Germany": ("Munich", "+49 89", "de"),
+    "Sweden": ("Stockholm", "+46 8", "se"),
+    "Italy": ("Milan", "+39 02", "it"),
+    "Spain": ("Madrid", "+34 91", "es"),
+    "Netherlands": ("Rotterdam", "+31 10", "nl"),
+    "Ireland": ("Dublin", "+353 1", "ie"),
+    "Poland": ("Warsaw", "+48 22", "pl"),
+    "Austria": ("Vienna", "+43 1", "at"),
+}
+
+
+def _mock_contact(name: str, country: str) -> dict:
+    """Deterministic, plausible (fake) contact details for a mock supplier."""
+    city, dial, tld = _COUNTRY_META.get(country, ("EU City", "+00 0", "eu"))
+    h = hashlib.sha256(("contact:" + name).encode()).digest()
+    slug = "".join(c.lower() for c in name if c.isalnum())[:20]
+    domain = f"{slug}.{tld}"
+    return {
+        "phone": f"{dial} {100 + h[0] % 900} {1000 + (h[1] * 251 + h[2]) % 9000}",
+        "email": f"sales@{domain}",
+        "address": f"{10 + h[3] % 180} Industrial Park, {city}, {country}",
+        "hours": "Mon–Fri 09:00–17:00 CET",
+        "website": f"https://www.{domain}",
+    }
+
 def _supplier_scores_for(seed: str, n_certs: int) -> dict:
     """Deterministic supplier sub-scores; certification reflects # of EU certs."""
     h = hashlib.sha256(("supp:" + seed).encode()).digest()
@@ -60,9 +87,10 @@ def _mock_suppliers_for(product: str, cat: str) -> list:
         form, country, certs = _SUPPLIER_FORMS[idx % len(_SUPPLIER_FORMS)]
         name = form.format(cat=cat.title())
         sub = _supplier_scores_for(product + "|" + name, len(certs))
+        contact = _mock_contact(name, country)
         scored = compute_supplier_score(
             name=name, product=product, country=country,
-            certifications=certs, **sub,
+            certifications=certs, **contact, **sub,
         )
         scored["reputation_note"] = "Established EU manufacturer (mock demo signal)."
         scored["evidence"] = "Mock directory entry (offline demo — no live source)."
@@ -169,13 +197,25 @@ def _build_report(category: str, sourced: list) -> str:
     for entry in sourced:
         lines.append(f"## {entry['product']}")
         lines.append("")
-        lines.append("| Rank | Supplier | Country | Score | Tier | Certifications |")
-        lines.append("|----:|----------|---------|------:|------|----------------|")
+        lines.append("| Rank | Supplier | Country | Score | Tier | Certifications | Phone | Email | Website |")
+        lines.append("|----:|----------|---------|------:|------|----------------|-------|-------|---------|")
         for i, s in enumerate(entry["suppliers"], 1):
             certs = ", ".join(s.get("certifications", []))
+            c = s.get("contact", {})
             lines.append(
                 f"| {i} | {s['name']} | {s['country']} | {s['score']} | "
-                f"{s['tier']} | {certs} |"
+                f"{s['tier']} | {certs} | {c.get('phone','')} | {c.get('email','')} | "
+                f"{c.get('website','')} |"
+            )
+        lines.append("")
+        lines.append("**Contact details**")
+        lines.append("")
+        for i, s in enumerate(entry["suppliers"], 1):
+            c = s.get("contact", {})
+            lines.append(
+                f"{i}. **{s['name']}** — 📞 {c.get('phone','—')} · ✉️ "
+                f"{c.get('email','—')} · 🌐 {c.get('website','—')}  \n"
+                f"   📍 {c.get('address','—')} · 🕑 {c.get('hours','—')}"
             )
         lines.append("")
     lines.append("## Caveats")

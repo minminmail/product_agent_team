@@ -64,17 +64,22 @@ Do this:
 2. Call the `{TOOL_SAVE_SUPPLIERS}` tool with: category="{category}",
    output_dir="{output_dir}", and products=[...] where each item is
    {{product, score, suppliers:[{{name, country, score, tier, certifications,
-   reputation_note, evidence}}]}}.
+   contact:{{phone, email, address, hours, website}}, reputation_note,
+   evidence}}]}}.
 
 Finally, output a clean Markdown report to me:
   # Supplier Shortlist: {category}
   - a 1-2 sentence summary
   - for each product, a subheading with the product name and a Markdown table of
-    its suppliers: Rank | Supplier | Country | Score | Tier | Certifications
-  - a short "Caveats" note (verify suppliers and certifications before ordering).
+    its suppliers: Rank | Supplier | Country | Score | Tier | Certifications |
+    Phone | Email | Website
+  - under each table, a short "Contact" list per supplier with its full address
+    and work hours (these are too long for the table)
+  - a short "Caveats" note (verify suppliers, certifications and contact details
+    before ordering).
 
-Be concrete and evidence-driven. Do not fabricate suppliers, certifications, or
-sources."""
+Be concrete and evidence-driven. Do not fabricate suppliers, certifications,
+contact details, or sources."""
 
 
 def _make_options(model: str, output_dir: str):

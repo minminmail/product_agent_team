@@ -34,13 +34,18 @@ AGENTS: dict[str, AgentDefinition] = {
             "Capture which certifications each supplier actually holds.\n\n"
             "For each supplier capture: company name, country, the product it "
             "supplies, the certifications it holds, a one-line reputation note, "
-            "and a cited source URL. Then call the "
+            "a cited source URL, and CONTACT DETAILS — telephone, email, "
+            "physical address, business/work hours, and website — found on the "
+            "company's official site or a reputable directory. Then call the "
             f"`{TOOL_SCORE_SUPPLIER}` tool with five 0-10 sub-scores (quality, "
-            "reputation, certification, reliability, price) to get a consistent "
+            "reputation, certification, reliability, price) plus the contact "
+            "fields (phone, email, address, hours, website) to get a consistent "
             "0-100 supplier-quality score — never invent the score yourself.\n\n"
             "Rank each product's suppliers by score (highest first). Do not "
-            "fabricate companies, certifications, or sources — if you cannot "
-            "verify a supplier, leave it out."
+            "fabricate companies, certifications, contact details, or sources — "
+            "prefer the supplier's official website for contact info; if a "
+            "contact detail cannot be verified, leave that field blank rather "
+            "than guessing."
         ),
         tools=WEB_TOOLS + [TOOL_SCORE_SUPPLIER],
         model="sonnet",

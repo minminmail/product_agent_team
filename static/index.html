@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Product Researcher — Agent Dashboard</title>
+<title>Marketing Agent Team — Agent Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <style>
   :root{
@@ -31,8 +31,11 @@
   button{background:var(--accent);color:#06131f;border:0;border-radius:8px;padding:10px 16px;font-weight:650;
        cursor:pointer;font-size:14px;width:100%}
   button:disabled{opacity:.5;cursor:not-allowed}
-  button.secondary{background:var(--panel2);color:var(--accent);border:1px solid var(--border);margin-top:8px}
-  button.secondary:hover{border-color:var(--accent)}
+  button.agent-btn{display:flex;align-items:center;justify-content:center;gap:9px;
+       background:var(--panel2);color:var(--text);border:1px solid var(--border);margin-top:8px}
+  button.agent-btn:hover:not(:disabled){border-color:var(--accent)}
+  .btn-av{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+  .btn-av svg,.avatar svg{display:block;width:100%;height:100%}
   .toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:6px}
   .toggle .seg{width:50%;background:var(--bg);color:var(--muted);border:0;border-radius:0;
        padding:9px 12px;font-weight:600;font-size:13px;cursor:pointer}
@@ -44,6 +47,13 @@
   .stage-label{flex-basis:100%;font-size:10px;color:var(--muted);text-transform:uppercase;
        letter-spacing:.07em;font-weight:700;margin:6px 0 -2px}
   .stage-label:first-child{margin-top:0}
+  .stage-head{flex-basis:100%;display:flex;align-items:center;gap:9px;margin:8px 0 2px}
+  .stage-head:first-child{margin-top:0}
+  .stage-head .stage-label{flex-basis:auto;margin:0}
+  .stage-head .person{color:var(--text);font-weight:650;text-transform:none;letter-spacing:0}
+  .avatar{width:60px;height:60px;border-radius:50%;overflow:hidden;flex:0 0 auto;
+       box-shadow:0 0 0 1px var(--border);transition:.2s}
+  .avatar.active{box-shadow:0 0 0 2px var(--accent2),0 0 12px 1px rgba(188,140,255,.45)}
   .agent-chip{display:flex;align-items:center;gap:7px;background:var(--chip);border:1px solid var(--border);
        border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted);transition:.2s}
   .agent-chip .pip{width:7px;height:7px;border-radius:50%;background:var(--muted)}
@@ -80,7 +90,7 @@
 <body>
 <header>
   <span class="dot" id="health"></span>
-  <h1>Product Researcher</h1>
+  <h1>Marketing Agent Team</h1>
   <span class="sub">multi-agent market scan &amp; prediction · Claude Agent SDK</span>
 </header>
 
@@ -112,8 +122,8 @@
         <button type="button" class="seg" id="seg-mock">🧪 Mock</button>
       </div>
       <div class="mode-hint" id="modeHint">Live — uses your API key &amp; credits for real research.</div>
-      <button id="run">Run research</button>
-      <button id="source" class="secondary" disabled title="Run research for this category first — no saved report yet">🏭 Source suppliers</button>
+      <button id="run" class="agent-btn"></button>
+      <button id="source" class="agent-btn" disabled title="Run research for this category first — no saved report yet"></button>
       <div class="mode-hint" id="sourceHint">Stage 2 unlocks once a research report exists for this category.</div>
     </div>
 
@@ -144,6 +154,42 @@ const AGENTS = [
   ["predictor","🎯 predictor","Stage 1 · Research"],
   ["sourcing-scout","🏭 sourcing-scout","Stage 2 · Sourcing"],
 ];
+// Each of the two agent teams is a named person with a human avatar (a
+// DiceBear cartoon seeded by name; falls back to a solid colour circle offline).
+const PEOPLE = {
+  "Stage 1 · Research": {key:"s1", name:"Maria", role:"Product Researcher", color:"#1f6feb", kind:"woman"},
+  "Stage 2 · Sourcing": {key:"s2", name:"Javier", role:"Supplier Sourcer",  color:"#8957e5", kind:"man"},
+};
+// Self-contained inline-SVG cartoon avatars (no network needed).
+function avatarSVG(p){
+  const bg=p.color, skin="#f1c8a6", hair="#3a2a1a", mouth="#bd5a48";
+  if(p.kind==="man"){
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+      `<rect width="100" height="100" fill="${bg}"/>`+
+      `<path d="M28 92c2-13 10-20 22-20s20 7 22 20z" fill="#dd9a72"/>`+
+      `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+      `<path d="M30 50c1 12 8 24 20 24s19-12 20-24c-3 9-11 13-20 13s-17-4-20-13z" fill="${hair}"/>`+
+      `<path d="M29 47c0-16 9-26 21-26s21 10 21 26c-5-8-9-12-21-12s-16 4-21 12z" fill="#2a1e15"/>`+
+      `<circle cx="43" cy="48" r="2.6" fill="${hair}"/><circle cx="57" cy="48" r="2.6" fill="${hair}"/>`+
+      `<path d="M44 56q6 3 12 0" fill="none" stroke="${hair}" stroke-width="3" stroke-linecap="round"/>`+
+      `</svg>`;
+  }
+  return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+    `<rect width="100" height="100" fill="${bg}"/>`+
+    `<path d="M24 52c0-19 11-31 26-31s26 12 26 31v26q0 8-8 8h-3V54H35v32h-3q-8 0-8-8z" fill="#6b4226"/>`+
+    `<path d="M30 92c2-12 9-18 20-18s18 6 20 18z" fill="#e7a781"/>`+
+    `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+    `<path d="M30 48c0-17 9-27 20-27s20 10 20 27c-5-9-12-12-20-12s-15 3-20 12z" fill="#6b4226"/>`+
+    `<ellipse cx="43" cy="50" rx="2.4" ry="3" fill="${hair}"/><ellipse cx="57" cy="50" rx="2.4" ry="3" fill="${hair}"/>`+
+    `<path d="M43 59q7 6 14 0" fill="none" stroke="${mouth}" stroke-width="2.4" stroke-linecap="round"/>`+
+    `</svg>`;
+}
+const agentStage = Object.fromEntries(AGENTS.map(([id,,stage])=>[id,stage]));
+// Matching avatar + label markup for the two agent buttons.
+const BTN_HTML = {
+  run: `<span class="btn-av" title="Maria — Product Researcher">${avatarSVG(PEOPLE['Stage 1 · Research'])}</span><span>Run research</span>`,
+  source: `<span class="btn-av" title="Javier — Supplier Sourcer">${avatarSVG(PEOPLE['Stage 2 · Sourcing'])}</span><span>Source suppliers</span>`,
+};
 const $ = s => document.querySelector(s);
 const teamEl = $("#team"), tl = $("#timeline"), reportEl = $("#report");
 let es = null, reportBuf = "", running = false, mockMode = false;
@@ -164,9 +210,14 @@ function renderTeam(){
   let lastStage = null;
   AGENTS.forEach(([id,label,stage])=>{
     if(stage && stage!==lastStage){
-      const s=document.createElement("div");
-      s.className="stage-label"; s.textContent=stage;
-      teamEl.appendChild(s); lastStage=stage;
+      const m=PEOPLE[stage]||{};
+      const head=document.createElement("div");
+      head.className="stage-head";
+      head.innerHTML=
+        `<span class="avatar" id="av-${m.key||''}" title="${esc(m.name||'')} — ${esc(m.role||stage)}" `+
+        `style="background:${m.color||'var(--chip)'}">${avatarSVG(m)}</span>`+
+        `<span class="stage-label"><b class="person">${esc(m.name||'')}</b> · ${esc(stage)}</span>`;
+      teamEl.appendChild(head); lastStage=stage;
     }
     const d=document.createElement("div");
     d.className="agent-chip"; d.id="ag-"+id;
@@ -178,6 +229,8 @@ function setAgent(id,state){
   const el=$("#ag-"+id); if(!el)return;
   el.classList.remove("active","done");
   if(state) el.classList.add(state);
+  const m=PEOPLE[agentStage[id]];
+  if(m){ const av=$("#av-"+m.key); if(av) av.classList.toggle("active", state==="active"); }
 }
 function clearAgents(){AGENTS.forEach(([id])=>setAgent(id,null));}
 
@@ -272,8 +325,8 @@ function addLinks(){
 }
 function finish(){
   running=false; if(es){es.close();es=null;}
-  $("#run").disabled=false; $("#run").textContent="Run research";
-  $("#source").innerHTML="🏭 Source suppliers";
+  $("#run").disabled=false; $("#run").innerHTML=BTN_HTML.run;
+  $("#source").innerHTML=BTN_HTML.source;
   // Re-check: a research run may have just produced the report.
   refreshSourceAvailability();
 }
@@ -303,6 +356,7 @@ async function refreshSourceAvailability(){
   applySourceState();
 }
 
+$("#run").innerHTML=BTN_HTML.run; $("#source").innerHTML=BTN_HTML.source;
 renderTeam(); checkHealth(); refreshSourceAvailability();
 $("#run").addEventListener("click", ()=>launch("research"));
 $("#source").addEventListener("click", ()=>launch("sourcing"));
