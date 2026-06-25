@@ -1,19 +1,33 @@
-# Product Researcher — a Claude Agent SDK team
+# Product Researcher — two Claude Agent SDK teams
 
-A small **multi-agent team** (Python + [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/python)) that scans the **live market** with web search and predicts which products are likely to become popular in any category you give it.
+Two **independent multi-agent teams** (Python + [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/python)) that work in sequence but are fully decoupled — each runs on its own:
 
-## The team
+1. **`product_researcher`** — scans the **live market** with web search and predicts which products are likely to become popular in a category. Writes `predictions_<category>.json`.
+2. **`supplier_sourcer`** — reads that saved report, takes the top products, and finds the **best-quality, EU-certified manufacturers/suppliers** for each. Writes `suppliers_<category>.json`.
 
-A lead orchestrator delegates to four specialist subagents:
+Because the sourcing agent works from the saved `predictions_*.json` rather than calling the research agent directly, the two can run independently — and in parallel on different categories.
+
+## Agent 1 — product_researcher
+
+A lead orchestrator delegates to three specialist subagents:
 
 | Agent | Role |
 |-------|------|
 | **trend-scout** | Web-searches for 8–15 specific emerging products + rising signals + sources |
 | **market-analyst** | Scores each candidate 0–10 on demand, growth, margin, competition, feasibility |
 | **predictor** | Turns sub-scores into a deterministic 0–100 opportunity score and ranks them |
-| **sourcing-scout** | For the top 3 products, finds the best-quality, EU-certified manufacturers/suppliers and ranks up to 10 per product |
 
-Scoring is done by in-process **custom tools** so ranking is transparent and consistent — not vibes. `score_product` computes the 0–100 opportunity score; `score_supplier` computes a 0–100 supplier-quality score weighting **quality, reputation, EU certification (CE/ISO/REACH/RoHS…), reliability and price**. Two more tools (`save_results`, `save_suppliers`) write the JSON outputs.
+`score_product` (in-process tool) computes the transparent 0–100 opportunity score; `save_results` writes the JSON.
+
+## Agent 2 — supplier_sourcer
+
+A lead orchestrator delegates to one specialist subagent:
+
+| Agent | Role |
+|-------|------|
+| **sourcing-scout** | For each top product, finds real manufacturers/suppliers and ranks up to 10, prioritising trustworthy reputation, high quality, and valid EU certifications |
+
+`score_supplier` (in-process tool) computes a 0–100 supplier-quality score weighting **quality, reputation, EU certification (CE/ISO 9001/REACH/RoHS…), reliability and price**; `save_suppliers` writes the JSON. It reads the research agent's output via `predictions_<category>.json`.
 
 ## Setup
 
@@ -38,24 +52,34 @@ python -m product_researcher.server
 # open http://127.0.0.1:8000
 ```
 
-Type a category, pick Top N and a model, hit **Run research**. The left pane shows the live timeline and team status; the right pane renders the final ranked report with download links to the `.md` and `.json`.
+Type a category, pick Top N and a model, hit **Run research** (Stage 1). When that finishes, hit **🏭 Source suppliers** (Stage 2) to run the *separate* sourcing agent on the saved report. The left pane shows the live timeline and team status; the right pane renders the report with download links.
 
-The dashboard streams events over Server-Sent Events (`GET /api/research`) from the *same* pipeline the CLI uses, so behaviour is identical.
+The dashboard streams events over Server-Sent Events: `GET /api/research` (research agent) and `GET /api/sourcing` (sourcing agent) — the same pipelines the CLIs use, so behaviour is identical.
 
 ## Run — CLI
 
-```bash
-# basic
-python -m product_researcher.main "smart home gadgets"
+The two agents are separate commands. Run research first, then sourcing reads its output:
 
-# options
-python -m product_researcher.main "eco-friendly pet products" --top 8 --out ./reports --model opus
+```bash
+# Agent 1 — research
+python -m product_researcher.main "smart home gadgets" --top 8
+
+# Agent 2 — sourcing (reads predictions_smart_home_gadgets.json from ./reports)
+python -m supplier_sourcer.main "smart home gadgets" --top 3 --per 10
 ```
 
-Output (written to `--out`, default `./reports`; the dashboard writes to `./reports`):
+Useful options:
 
-- `report_<category>.md` — executive summary + ranked table + **top suppliers** per product + methodology
-- `predictions_<category>.json` — structured predictions for downstream use
+```bash
+python -m product_researcher.main "eco-friendly pet products" --top 8 --out ./reports --model opus
+python -m supplier_sourcer.main "eco-friendly pet products" --reports ./reports --top 3 --per 10
+```
+
+Output (written to `--out`/`--reports`, default `./reports`):
+
+- `report_<category>.md` — executive summary + ranked product table + methodology (research agent)
+- `predictions_<category>.json` — structured predictions; **the hand-off file** the sourcing agent reads
+- `report_suppliers_<category>.md` — supplier shortlist report (sourcing agent CLI)
 - `suppliers_<category>.json` — per-product supplier shortlists (name, country, score, tier, certifications, source)
 
 ## Test it locally
@@ -112,12 +136,20 @@ CLI:
 python -m product_researcher.main "smart home gadgets" --top 5 --mock
 ```
 
-Mock runs use the real scoring/save tools, so the generated `report_*.md` and `predictions_*.json` are real files — only the market "research" is simulated. Switch mock off (and add a funded API key) for genuine live results.
+Both agents support mock mode. In the dashboard tick **"Mock mode"** before clicking Run research or Source suppliers. On the CLI:
+
+```bash
+python -m product_researcher.main "smart home gadgets" --top 5 --mock
+python -m supplier_sourcer.main "smart home gadgets" --top 3 --mock
+```
+
+The sourcing mock reads the **real** `predictions_*.json` if present (so it sources your actual top products), and falls back to canned products if none exists. Mock runs use the real scoring/save tools, so the generated `.md`/`.json` files are real — only the web "research" is simulated.
 
 **Smoke test (no API credits used)** — confirm everything imports and wires up:
 
 ```bash
-python -c "from product_researcher import server, events, agents, tools, core, mock; print('imports OK')"
+python -c "from product_researcher import server, events, agents, tools, core, mock; print('research OK')"
+python -c "from supplier_sourcer import events, agents, tools, core, mock; print('sourcing OK')"
 ```
 
 **Notes & troubleshooting**
@@ -130,49 +162,52 @@ python -c "from product_researcher import server, events, agents, tools, core, m
 ## How it works
 
 ```
-your category
-     │
-     ▼
-  ┌─────────────┐  delegates (Agent tool)
-  │  LEAD AGENT │ ───────────────────────────────────────────┐
-  └─────────────┘                                             │
-     │  1              2              3            4           ▼
-     ▼            ▼            ▼            ▼      score_product +
- trend-scout → market-analyst → predictor → sourcing-scout    score_supplier
- (WebSearch)   (WebSearch)     (scoring)   (WebSearch +        (tools)
-                                            supplier scoring)      │
-                                                                   ▼
-                              save_results + save_suppliers (JSON) + Markdown report
+  AGENT 1 · product_researcher                         AGENT 2 · supplier_sourcer
+  ┌───────────────────────────────────────┐           ┌──────────────────────────────────┐
+  │ LEAD                                   │           │ LEAD                             │
+  │   trend-scout → market-analyst →       │           │   sourcing-scout                │
+  │   predictor → score_product (tool)     │           │   → score_supplier (tool)       │
+  └───────────────────────────────────────┘           └──────────────────────────────────┘
+               │                                                    ▲       │
+               ▼                                                    │       ▼
+        predictions_<category>.json  ───── reads the saved file ────┘   suppliers_<category>.json
 ```
 
-**Stage 1** (trend-scout → market-analyst → predictor) finds and ranks the products.
-**Stage 2** (sourcing-scout) takes the top 3 and finds the best-quality, EU-certified
-suppliers for each.
+The two agents are **decoupled**: the research agent writes `predictions_<category>.json`;
+the sourcing agent reads it. So you can run them independently — re-source an old report,
+or run research and sourcing for different categories in parallel.
 
 ## Project layout
 
 ```
 agent_team/
-├─ product_researcher/
-│  ├─ core.py      # pure, SDK-free scoring/save logic (shared by tools + mock)
-│  ├─ tools.py     # SDK tool wrappers: score_product, save_results, score_supplier, save_suppliers
-│  ├─ agents.py    # the 4 subagent definitions
-│  ├─ events.py    # shared pipeline + SDK-message → UI-event translator
-│  ├─ mock.py      # fully offline pipeline (no SDK / API key needed)
-│  ├─ main.py      # CLI
-│  └─ server.py    # FastAPI dashboard (SSE)
-├─ static/index.html  # single-file dashboard frontend
+├─ product_researcher/      # AGENT 1 — find & rank products
+│  ├─ core.py      # pure, SDK-free scoring/save logic (score_product, write_results)
+│  ├─ tools.py     # SDK tool wrappers: score_product, save_results
+│  ├─ agents.py    # 3 subagents: trend-scout, market-analyst, predictor
+│  ├─ events.py    # research pipeline + SDK-message → UI-event translator
+│  ├─ mock.py      # fully offline research pipeline (no SDK / API key needed)
+│  ├─ main.py      # research CLI
+│  └─ server.py    # FastAPI dashboard (SSE) — serves BOTH agents
+├─ supplier_sourcer/        # AGENT 2 — source suppliers from a saved report
+│  ├─ core.py      # pure, SDK-free supplier scoring + load_predictions/write_suppliers
+│  ├─ tools.py     # SDK tool wrappers: score_supplier, save_suppliers
+│  ├─ agents.py    # 1 subagent: sourcing-scout
+│  ├─ events.py    # sourcing pipeline (reads predictions_*.json)
+│  ├─ mock.py      # fully offline sourcing pipeline
+│  └─ main.py      # sourcing CLI
+├─ static/index.html  # single-file dashboard frontend (Run research + Source suppliers)
 ├─ requirements.txt
 └─ .env.example
 ```
 
 ## Tuning
 
-- **Scoring weights** live in `product_researcher/core.py` — `SCORE_WEIGHTS` (product opportunity) and `SUPPLIER_WEIGHTS` (supplier quality). Change what the team rewards.
-- **How many products get sourced** and **suppliers per product** live in `product_researcher/events.py` (`SOURCE_TOP_PRODUCTS`, `SUPPLIERS_PER_PRODUCT`).
-- **Agent behaviour** lives in `product_researcher/agents.py` — edit prompts, models, or add a new subagent.
-- **Pipeline / lead brief** lives in `product_researcher/events.py` (`build_lead_prompt`, `run_stream`).
-- **Dashboard** is `product_researcher/server.py` + `static/index.html`.
+- **Product scoring weights** live in `product_researcher/core.py` (`SCORE_WEIGHTS`); **supplier scoring weights** in `supplier_sourcer/core.py` (`SUPPLIER_WEIGHTS`).
+- **How many products get sourced** and **suppliers per product** are `SOURCE_TOP_PRODUCTS` and `SUPPLIERS_PER_PRODUCT` in `supplier_sourcer/events.py` (and the dashboard `top`/`per` query params).
+- **Agent behaviour** lives in each package's `agents.py` — edit prompts, models, or add a subagent.
+- **Lead briefs** live in each package's `events.py` (`build_lead_prompt`, `run_stream`).
+- **Dashboard** is `product_researcher/server.py` (serves both agents via `/api/research` and `/api/sourcing`) + `static/index.html`.
 
 ### Why the Claude Agent SDK (not LangChain/LangGraph)?
 

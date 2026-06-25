@@ -18,23 +18,7 @@ from typing import AsyncIterator
 
 # Import the pure, SDK-free core directly so mock mode never loads
 # claude_agent_sdk (that's the whole point of mock mode).
-from .core import compute_score, compute_supplier_score, write_results, write_suppliers
-
-# Stage 2 (sourcing) demo sizing — kept small so the mock report stays readable.
-MOCK_SOURCE_TOP_PRODUCTS = 3
-MOCK_SUPPLIERS_PER_PRODUCT = 5
-
-# Canned EU-leaning manufacturers used to demo the supplier stage offline.
-_SUPPLIER_FORMS = [
-    ("{cat} Werke GmbH", "Germany", ["CE", "ISO 9001", "REACH"]),
-    ("Nordic {cat} Manufacturing AB", "Sweden", ["CE", "ISO 9001", "RoHS"]),
-    ("{cat} Italia S.p.A.", "Italy", ["CE", "EN 71"]),
-    ("Iberia {cat} Industries S.L.", "Spain", ["CE", "ISO 9001"]),
-    ("{cat} Benelux B.V.", "Netherlands", ["CE", "ISO 14001", "REACH"]),
-    ("Atlantic {cat} Co.", "Ireland", ["CE", "ISO 9001"]),
-    ("{cat} Polska Sp. z o.o.", "Poland", ["CE", "RoHS"]),
-    ("Alpine {cat} AG", "Austria", ["CE", "ISO 9001", "EN 71"]),
-]
+from .core import compute_score, write_results
 
 # Generic candidate templates. {cat} is filled with the user's category so the
 # mock feels relevant to whatever was typed.
@@ -66,39 +50,6 @@ def _scores_for(seed: str) -> dict:
         "competition": s(3, 1.5, 9.0),
         "feasibility": s(4, 4.0, 9.5),
     }
-
-
-def _supplier_scores_for(seed: str, n_certs: int) -> dict:
-    """Deterministic supplier sub-scores; certification reflects # of EU certs."""
-    h = hashlib.sha256(("supp:" + seed).encode()).digest()
-    def s(i: int, lo: float = 5.0, hi: float = 9.7) -> float:
-        return round(lo + (h[i] / 255) * (hi - lo), 1)
-    return {
-        "quality": s(0, 6.0, 9.8),
-        "reputation": s(1, 5.5, 9.6),
-        # More valid certs => higher certification sub-score (capped at 10).
-        "certification": round(min(10.0, 5.0 + 1.5 * n_certs + h[2] / 255), 1),
-        "reliability": s(3, 5.0, 9.5),
-        "price": s(4, 4.0, 9.0),
-    }
-
-
-def _mock_suppliers_for(product: str, cat: str) -> list:
-    """Build a deterministic, ranked supplier shortlist for one product."""
-    suppliers = []
-    for idx in range(MOCK_SUPPLIERS_PER_PRODUCT):
-        form, country, certs = _SUPPLIER_FORMS[idx % len(_SUPPLIER_FORMS)]
-        name = form.format(cat=cat.title())
-        sub = _supplier_scores_for(product + "|" + name, len(certs))
-        scored = compute_supplier_score(
-            name=name, product=product, country=country,
-            certifications=certs, **sub,
-        )
-        scored["reputation_note"] = "Established EU manufacturer (mock demo signal)."
-        scored["evidence"] = "Mock directory entry (offline demo — no live source)."
-        suppliers.append(scored)
-    suppliers.sort(key=lambda s: s["score"], reverse=True)
-    return suppliers
 
 
 async def run_stream_mock(
@@ -174,38 +125,8 @@ async def run_stream_mock(
            "agent": "lead", "summary": f"save: {len(top_products)} products"}
     await pause()
 
-    # 5) sourcing-scout — find best-quality, EU-certified suppliers for the top N
-    sourced = []
-    if top_products:
-        yield {"type": "subagent", "name": "sourcing-scout",
-               "task": f"source best-quality EU-certified suppliers for top "
-                       f"{MOCK_SOURCE_TOP_PRODUCTS} products"}
-        await pause()
-        for p in top_products[:MOCK_SOURCE_TOP_PRODUCTS]:
-            yield {"type": "tool", "name": "WebSearch", "agent": "subagent",
-                   "summary": f'suppliers: "{p["name"]}"'}
-            await asyncio.sleep(0 if fast else 0.06)
-            suppliers = _mock_suppliers_for(p["name"], cat)
-            for s in suppliers:
-                yield {"type": "tool", "name": "mcp__research-tools__score_supplier",
-                       "agent": "subagent",
-                       "summary": f'supplier: {s["name"]} = {s["score"]}'}
-                await asyncio.sleep(0 if fast else 0.03)
-            sourced.append({"product": p["name"], "score": p["score"],
-                            "suppliers": suppliers})
-        yield {"type": "text", "agent": "subagent",
-               "text": f"Shortlisted suppliers for {len(sourced)} products."}
-        await pause()
-
-        # 6) save suppliers JSON via the real (SDK-free) writer
-        write_suppliers(category=category, products=sourced, output_dir=output_dir)
-        n_supp = sum(len(s["suppliers"]) for s in sourced)
-        yield {"type": "tool", "name": "mcp__research-tools__save_suppliers",
-               "agent": "lead", "summary": f"save: {n_supp} suppliers"}
-        await pause()
-
     # Build the markdown report (streamed as lead text, like the real run)
-    report = _build_report(category, top_products, sourced)
+    report = _build_report(category, top_products)
     for chunk in _chunks(report, 240):
         yield {"type": "text", "agent": "lead", "text": chunk}
         await asyncio.sleep(0 if fast else 0.04)
@@ -215,7 +136,7 @@ async def run_stream_mock(
            "num_turns": 0, "is_error": False, "report": report}
 
 
-def _build_report(category: str, products: list, sourced: list | None = None) -> str:
+def _build_report(category: str, products: list) -> str:
     lines = [f"# Product Predictions: {category}", ""]
     lines.append(
         f"*(MOCK / offline demo — generated with canned data and zero API calls.)*"
@@ -235,36 +156,12 @@ def _build_report(category: str, products: list, sourced: list | None = None) ->
             f"| {i} | {p['name']} | {p['score']} | {p['verdict']} | {p['rationale']} |"
         )
     lines.append("")
-
-    if sourced:
-        lines.append("## Top suppliers")
-        lines.append(
-            "Best-quality manufacturers/suppliers for the top products, ranked on "
-            "quality, reputation and valid EU certifications (CE, ISO 9001, REACH, "
-            "RoHS…)."
-        )
-        lines.append("")
-        for entry in sourced:
-            lines.append(f"### {entry['product']}")
-            lines.append("")
-            lines.append("| Rank | Supplier | Country | Score | Tier | Certifications |")
-            lines.append("|----:|----------|---------|------:|------|----------------|")
-            for i, s in enumerate(entry["suppliers"], 1):
-                certs = ", ".join(s.get("certifications", []))
-                lines.append(
-                    f"| {i} | {s['name']} | {s['country']} | {s['score']} | "
-                    f"{s['tier']} | {certs} |"
-                )
-            lines.append("")
-
     lines.append("## Methodology & caveats")
     lines.append(
         "Opportunity score (0–100) weights demand, growth, margin, low competition "
-        "and feasibility. Supplier score (0–100) weights quality, reputation, EU "
-        "certification, reliability and price. **This is mock mode:** candidates, "
-        "suppliers and signals are generated offline for testing the pipeline and "
-        "UI — they are not real market research. Run with a valid API key for live "
-        "results, and always verify suppliers and certifications before ordering."
+        "and feasibility. **This is mock mode:** candidates and signals are "
+        "generated offline for testing the pipeline and UI — they are not real "
+        "market research. Run with a valid API key for live results."
     )
     lines.append("")
     return "\n".join(lines)

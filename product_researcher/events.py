@@ -32,25 +32,13 @@ from claude_agent_sdk import (
 )
 
 from .agents import AGENTS
-from .tools import (
-    TOOL_SAVE,
-    TOOL_SAVE_SUPPLIERS,
-    TOOL_SCORE,
-    TOOL_SCORE_SUPPLIER,
-    research_tools_server,
-)
-
-# How many of the top products get a supplier shortlist, and how many suppliers
-# to shortlist per product.
-SOURCE_TOP_PRODUCTS = 3
-SUPPLIERS_PER_PRODUCT = 10
+from .tools import TOOL_SAVE, TOOL_SCORE, research_tools_server
 
 
 def build_lead_prompt(category: str, top: int, output_dir: str) -> str:
     """The lead agent's task brief. Single source of truth for the pipeline."""
     return f"""You lead a product-research team. Goal: find and predict the products
-most likely to become popular in the category: "{category}", then source the best
-manufacturers/suppliers for the top picks.
+most likely to become popular in the category: "{category}".
 
 Run this pipeline using your subagents (delegate with the Task tool):
 
@@ -64,29 +52,17 @@ Run this pipeline using your subagents (delegate with the Task tool):
    category="{category}", output_dir="{output_dir}", and products=[...] where
    each product is an object: name, score, verdict, rationale, evidence (a short
    source note or URL).
-5. Take the TOP {SOURCE_TOP_PRODUCTS} ranked products and call the
-   `sourcing-scout` subagent to find, for each, the best-quality manufacturers/
-   suppliers — prioritising trustworthy reputation, high product quality, and
-   valid EU certifications (CE, ISO 9001, REACH, RoHS, EN…). It must score every
-   supplier with the {TOOL_SCORE_SUPPLIER} tool and return up to
-   {SUPPLIERS_PER_PRODUCT} ranked suppliers per product.
-6. Call the `{TOOL_SAVE_SUPPLIERS}` tool with: category="{category}",
-   output_dir="{output_dir}", and products=[...] where each item is
-   {{product, score, suppliers:[{{name, country, score, tier, certifications,
-   reputation_note, evidence}}]}}.
 
 Finally, output a clean Markdown report to me with these sections:
   # Product Predictions: {category}
   - a 2-3 sentence executive summary
   - a Markdown table of the top {top}: Rank | Product | Score | Verdict | Why
-  - a "## Top suppliers" section: for each of the top {SOURCE_TOP_PRODUCTS}
-    products, a subheading with the product name and a Markdown table of its
-    suppliers: Rank | Supplier | Country | Score | Tier | Certifications
-  - a short "Methodology & caveats" note (predictions are probabilistic; verify
-    suppliers and certifications before ordering).
+  - a short "Methodology & caveats" note (predictions are probabilistic).
 
-Be concrete and evidence-driven. Do not fabricate products, suppliers,
-certifications, or sources."""
+Be concrete and evidence-driven. Do not fabricate sources.
+
+(Supplier sourcing for the top products is handled by a separate agent — the
+`supplier_sourcer` package — which reads the predictions_*.json you save here.)"""
 
 
 def _make_options(model: str, output_dir: str):
@@ -108,8 +84,6 @@ def _make_options(model: str, output_dir: str):
             "WebFetch",
             TOOL_SCORE,
             TOOL_SAVE,
-            TOOL_SCORE_SUPPLIER,
-            TOOL_SAVE_SUPPLIERS,
         ],
         # Non-interactive: never block waiting for a human to approve a tool.
         permission_mode="bypassPermissions",
@@ -136,13 +110,6 @@ def _tool_summary(name: str, tool_input: dict) -> str:
     if name.endswith("save_results"):
         prods = tool_input.get("products", [])
         return f'save: {len(prods) if isinstance(prods, list) else "?"} products'
-    if name.endswith("score_supplier"):
-        return f'supplier: {tool_input.get("name", "?")}'
-    if name.endswith("save_suppliers"):
-        prods = tool_input.get("products", [])
-        n = sum(len(p.get("suppliers", [])) for p in prods if isinstance(p, dict)) \
-            if isinstance(prods, list) else "?"
-        return f'save: {n} suppliers'
     return _short(tool_input)
 
 

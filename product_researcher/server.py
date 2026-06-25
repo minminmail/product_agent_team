@@ -42,6 +42,20 @@ async def health() -> JSONResponse:
     return JSONResponse({"ok": True, "has_key": bool(os.getenv("ANTHROPIC_API_KEY"))})
 
 
+@app.get("/api/has_report")
+async def has_report(category: str = Query(..., min_length=2)) -> JSONResponse:
+    """Whether a research report exists for this category (gates Stage 2 in the UI)."""
+    from supplier_sourcer.core import list_available_reports, load_predictions
+
+    pred = load_predictions(category, REPORTS_DIR)
+    exists = bool(pred and pred.get("products"))
+    return JSONResponse({
+        "exists": exists,
+        "product_count": len(pred.get("products", [])) if exists else 0,
+        "available": list_available_reports(REPORTS_DIR),
+    })
+
+
 @app.get("/api/research")
 async def research(
     category: str = Query(..., min_length=2),
@@ -70,6 +84,48 @@ async def research(
                 async for ev in run_stream(category, top, REPORTS_DIR, model):
                     yield _sse(ev)
         except Exception as exc:  # never leave the stream hanging
+            yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+        yield _sse({"type": "done"})
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/api/sourcing")
+async def sourcing(
+    category: str = Query(..., min_length=2),
+    top: int = Query(3, ge=1, le=10),
+    per: int = Query(10, ge=1, le=20),
+    model: str = Query("sonnet"),
+    mock: bool = Query(False, description="Run fully offline with canned suppliers (no API key/credits)."),
+) -> StreamingResponse:
+    """SSE stream of the INDEPENDENT supplier-sourcing agent.
+
+    Reads the saved predictions_<category>.json produced by the research agent.
+    """
+
+    async def event_source():
+        try:
+            if mock:
+                from supplier_sourcer.mock import run_stream_mock as source_mock
+                async for ev in source_mock(category, REPORTS_DIR, REPORTS_DIR, model, top, per):
+                    yield _sse(ev)
+            else:
+                if not os.getenv("ANTHROPIC_API_KEY"):
+                    yield _sse({
+                        "type": "error",
+                        "message": "ANTHROPIC_API_KEY is not set. Tip: tick 'Mock mode' "
+                                   "to run offline with no key or credits.",
+                    })
+                    return
+                # Lazy import so mock mode never requires claude_agent_sdk.
+                from supplier_sourcer.events import run_stream as source_stream
+                async for ev in source_stream(category, REPORTS_DIR, REPORTS_DIR, model, top, per):
+                    yield _sse(ev)
+        except Exception as exc:
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
         yield _sse({"type": "done"})
 
