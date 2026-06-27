@@ -23,6 +23,9 @@
   @media(max-width:900px){.wrap{grid-template-columns:1fr;height:auto}}
   .left{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
   .controls{padding:16px 20px;border-bottom:1px solid var(--border);background:var(--panel)}
+  .cfgbox{border:1px solid var(--border);border-radius:10px;background:var(--panel2);padding:14px 14px 16px;margin-bottom:14px}
+  .cfgbox-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;
+       margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
   .row{display:flex;gap:10px;margin-bottom:10px}
   label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
   input,select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
@@ -59,6 +62,10 @@
   .stage-label:first-child{margin-top:0}
   .stage-head{flex-basis:100%;display:flex;align-items:center;gap:9px;margin:8px 0 2px}
   .stage-head:first-child{margin-top:0}
+  .sub-person{margin:4px 0 2px 22px}
+  .sub-person .avatar{width:42px;height:42px}
+  .sub-person .stage-label{font-size:13px}
+  .sub-person .stage-label .person{font-weight:600}
   .stage-head .stage-label{flex-basis:auto;margin:0}
   .stage-head .person{color:var(--text);font-weight:650;text-transform:none;letter-spacing:0}
   .status{margin-left:auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
@@ -159,37 +166,41 @@
   <!-- LEFT: controls + live timeline -->
   <div class="left">
     <div class="controls">
-      <div>
-        <label for="cat">Product category / market</label>
-        <input id="cat" placeholder="e.g. smart home gadgets" value="smart home gadgets" />
-      </div>
-      <div class="row" style="margin-top:10px">
-        <div style="flex:1">
-          <label for="top">Top N</label>
-          <input id="top" type="number" min="1" max="30" value="8" />
+      <div class="cfgbox">
+        <div class="cfgbox-title">Configuration</div>
+        <div>
+          <label for="cat">Product category / market</label>
+          <input id="cat" placeholder="e.g. smart home gadgets" value="smart home gadgets" />
         </div>
-        <div style="flex:2">
-          <label for="model">Lead model</label>
-          <select id="model">
-            <option value="sonnet">sonnet</option>
-            <option value="opus">opus</option>
-            <option value="haiku">haiku</option>
-          </select>
+        <div class="row" style="margin-top:10px">
+          <div style="flex:1">
+            <label for="top">Top N</label>
+            <input id="top" type="number" min="1" max="30" value="8" />
+          </div>
+          <div style="flex:2">
+            <label for="model">Lead model</label>
+            <select id="model">
+              <option value="sonnet">sonnet</option>
+              <option value="opus">opus</option>
+              <option value="haiku">haiku</option>
+            </select>
+          </div>
         </div>
+        <label style="margin-top:4px">Run mode</label>
+        <div class="toggle" id="modeToggle">
+          <button type="button" class="seg active" id="seg-live">⚡ Live</button>
+          <button type="button" class="seg" id="seg-mock">🧪 Mock</button>
+        </div>
+        <div class="mode-hint" id="modeHint">Live — uses your API key &amp; credits for real research.</div>
+        <label style="margin-top:4px">Pipeline engine</label>
+        <div class="toggle" id="engineToggle">
+          <button type="button" class="seg active" id="eng-standard">⚙ Standard</button>
+          <button type="button" class="seg" id="eng-langgraph">◇ LangGraph</button>
+        </div>
+        <div class="mode-hint" id="engineHint">Pipeline engine. LangGraph needs <code>pip install langgraph</code>.</div>
       </div>
-      <label style="margin-top:4px">Run mode</label>
-      <div class="toggle" id="modeToggle">
-        <button type="button" class="seg active" id="seg-live">⚡ Live</button>
-        <button type="button" class="seg" id="seg-mock">🧪 Mock</button>
-      </div>
-      <div class="mode-hint" id="modeHint">Live — uses your API key &amp; credits for real research.</div>
       <button id="pipe" class="agent-btn primary"></button>
       <div class="mode-hint">Amanda runs the full pipeline: research → suppliers.</div>
-      <div class="toggle" id="engineToggle">
-        <button type="button" class="seg active" id="eng-standard">⚙ Standard</button>
-        <button type="button" class="seg" id="eng-langgraph">◇ LangGraph</button>
-      </div>
-      <div class="mode-hint" id="engineHint">Pipeline engine. LangGraph needs <code>pip install langgraph</code>.</div>
       <div class="or-row"><span>or run a single stage</span></div>
       <button id="run" class="agent-btn"></button>
       <button id="source" class="agent-btn" disabled title="Run research for this category first — no saved report yet"></button>
@@ -200,40 +211,77 @@
 
     <div class="graphwrap" id="graphPanel" style="display:none">
       <div class="ttl">◇ LangGraph · StateGraph <span id="graphStatus" style="color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0"></span></div>
-      <svg viewBox="0 0 340 252" width="100%" style="max-width:320px;display:block;margin:0 auto">
+      <svg viewBox="0 0 360 462" width="100%" style="max-width:340px;display:block;margin:0 auto">
         <defs>
           <marker id="ga" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
             <path d="M0,0 L7,3 L0,6 Z" fill="#8b949e"/>
+          </marker>
+          <marker id="gag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#3fb950"/>
           </marker>
           <marker id="gar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
             <path d="M0,0 L7,3 L0,6 Z" fill="#f85149"/>
           </marker>
         </defs>
         <!-- edges -->
-        <line x1="170" y1="34" x2="170" y2="50" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
-        <line x1="170" y1="100" x2="170" y2="138" stroke="#3fb950" stroke-width="2.5" marker-end="url(#ga)"/>
-        <text x="178" y="124" fill="#3fb950" font-size="10">products?</text>
-        <line x1="170" y1="188" x2="170" y2="206" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
-        <path d="M245 76 C 322 92, 322 214, 198 222" fill="none" stroke="#f85149" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#gar)"/>
-        <text x="300" y="150" fill="#f85149" font-size="10" text-anchor="middle">no</text>
+        <line x1="180" y1="30" x2="180" y2="44" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <line x1="180" y1="86" x2="180" y2="102" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <!-- fan-out to the two parallel analysts -->
+        <line x1="168" y1="146" x2="104" y2="173" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <line x1="192" y1="146" x2="256" y2="173" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <text x="180" y="166" fill="#d29922" font-size="9.5" text-anchor="middle" font-weight="700">∥ parallel</text>
+        <!-- fan-in to predictor -->
+        <line x1="104" y1="222" x2="156" y2="245" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <line x1="256" y1="222" x2="204" y2="245" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <!-- predictor -> sourcing (conditional: produced products) -->
+        <line x1="180" y1="288" x2="180" y2="318" stroke="#3fb950" stroke-width="2.5" marker-end="url(#gag)"/>
+        <text x="188" y="306" fill="#3fb950" font-size="10">products?</text>
+        <!-- predictor -> END (conditional: no products) -->
+        <path d="M255 268 C 342 296, 342 404, 212 414" fill="none" stroke="#f85149" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#gar)"/>
+        <text x="338" y="346" fill="#f85149" font-size="10" text-anchor="middle">no</text>
+        <line x1="180" y1="364" x2="180" y2="402" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
         <!-- START -->
-        <rect x="140" y="10" width="60" height="24" rx="12" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
-        <text x="170" y="26" fill="#8b949e" font-size="11" text-anchor="middle">START</text>
-        <!-- research node -->
-        <g id="gn-research" class="gnode">
-          <rect x="95" y="52" width="150" height="48" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
-          <text x="170" y="74" fill="#e6edf3" font-size="14" font-weight="600" text-anchor="middle">research</text>
-          <text x="170" y="91" fill="#8b949e" font-size="10.5" text-anchor="middle">Maria · Stage 1</text>
+        <rect x="150" y="8" width="60" height="22" rx="11" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+        <text x="180" y="23" fill="#8b949e" font-size="11" text-anchor="middle">START</text>
+        <!-- trend-scout -->
+        <g id="gn-trend-scout" class="gnode">
+          <rect x="105" y="44" width="150" height="42" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="180" y="64" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">trend-scout</text>
+          <text x="180" y="79" fill="#8b949e" font-size="10" text-anchor="middle">find candidates</text>
         </g>
-        <!-- sourcing node -->
+        <!-- market-analyst -->
+        <g id="gn-market-analyst" class="gnode">
+          <rect x="105" y="102" width="150" height="42" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="180" y="122" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">market-analyst</text>
+          <text x="180" y="137" fill="#8b949e" font-size="10" text-anchor="middle">scores + pricing</text>
+        </g>
+        <!-- audience-researcher (parallel A) -->
+        <g id="gn-audience-researcher" class="gnode">
+          <rect x="12" y="173" width="156" height="48" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="90" y="193" fill="#e6edf3" font-size="12.5" font-weight="600" text-anchor="middle">audience-</text>
+          <text x="90" y="208" fill="#e6edf3" font-size="12.5" font-weight="600" text-anchor="middle">researcher</text>
+        </g>
+        <!-- competitor-analyst (parallel B) -->
+        <g id="gn-competitor-analyst" class="gnode">
+          <rect x="192" y="173" width="156" height="48" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="270" y="193" fill="#e6edf3" font-size="12.5" font-weight="600" text-anchor="middle">competitor-</text>
+          <text x="270" y="208" fill="#e6edf3" font-size="12.5" font-weight="600" text-anchor="middle">analyst</text>
+        </g>
+        <!-- predictor -->
+        <g id="gn-predictor" class="gnode">
+          <rect x="105" y="246" width="150" height="42" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="180" y="266" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">predictor</text>
+          <text x="180" y="281" fill="#8b949e" font-size="10" text-anchor="middle">score · rank · save</text>
+        </g>
+        <!-- sourcing -->
         <g id="gn-sourcing" class="gnode">
-          <rect x="95" y="140" width="150" height="48" rx="9" fill="#231a3a" stroke="#9a6bf0" stroke-width="2"/>
-          <text x="170" y="162" fill="#e6edf3" font-size="14" font-weight="600" text-anchor="middle">sourcing</text>
-          <text x="170" y="179" fill="#8b949e" font-size="10.5" text-anchor="middle">Javier · Stage 2</text>
+          <rect x="105" y="320" width="150" height="44" rx="9" fill="#231a3a" stroke="#9a6bf0" stroke-width="2"/>
+          <text x="180" y="341" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">sourcing</text>
+          <text x="180" y="356" fill="#8b949e" font-size="10" text-anchor="middle">Javier · Stage 2</text>
         </g>
         <!-- END -->
-        <rect x="145" y="206" width="50" height="24" rx="12" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
-        <text x="170" y="222" fill="#8b949e" font-size="11" text-anchor="middle">END</text>
+        <rect x="150" y="402" width="60" height="22" rx="11" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+        <text x="180" y="417" fill="#8b949e" font-size="11" text-anchor="middle">END</text>
       </svg>
     </div>
 
@@ -260,6 +308,8 @@ const AGENTS = [
   ["lead","🧭 lead","Stage 1 · Research"],
   ["trend-scout","🔭 trend-scout","Stage 1 · Research"],
   ["market-analyst","📊 market-analyst","Stage 1 · Research"],
+  ["audience-researcher","👥 audience-researcher","Stage 1 · Research"],
+  ["competitor-analyst","🥊 competitor-analyst","Stage 1 · Research"],
   ["predictor","🎯 predictor","Stage 1 · Research"],
   ["sourcing-scout","🏭 sourcing-scout","Stage 2 · Sourcing"],
 ];
@@ -271,6 +321,12 @@ const PEOPLE = {
 };
 // The orchestrator (Amanda) — a third, distinct cartoon-woman avatar.
 const ORCHESTRATOR = {key:"orc", name:"Amanda", role:"Orchestrator", color:"#0f9d72", kind:"woman2"};
+// Two named specialists with their own woman avatars — the parallel analysts.
+const HEIDI  = {key:"aud",  name:"Heidi",  role:"Audience Researcher", color:"#d9488a", kind:"woman3"};
+const YANGSI = {key:"comp", name:"Yangsi", role:"Competitor Analyst",  color:"#e07b39", kind:"woman4"};
+const JOSE   = {key:"pred", name:"Jose",   role:"Predictor",           color:"#1f9d9d", kind:"man2"};
+// Agents that are shown as a named person (avatar + name) rather than a chip.
+const AGENT_PEOPLE = {"audience-researcher":HEIDI, "competitor-analyst":YANGSI, "predictor":JOSE};
 // Self-contained inline-SVG cartoon avatars (no network needed).
 function avatarSVG(p){
   const bg=p.color, skin="#f1c8a6", hair="#3a2a1a", mouth="#bd5a48";
@@ -285,6 +341,18 @@ function avatarSVG(p){
       `<path d="M44 56q6 3 12 0" fill="none" stroke="${hair}" stroke-width="3" stroke-linecap="round"/>`+
       `</svg>`;
   }
+  if(p.kind==="man2"){                // Jose — short dark hair + trimmed beard
+    const beard="#2a1e15";
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+      `<rect width="100" height="100" fill="${bg}"/>`+
+      `<path d="M28 92c2-13 10-20 22-20s20 7 22 20z" fill="#dd9a72"/>`+
+      `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+      `<path d="M31 55c1 14 9 23 19 23s18-9 19-23c-4 9-10 14-19 14s-15-5-19-14z" fill="${beard}"/>`+
+      `<path d="M29 47c0-16 9-26 21-26s21 10 21 26c-5-8-9-12-21-12s-16 4-21 12z" fill="${beard}"/>`+
+      `<circle cx="43" cy="49" r="2.6" fill="${hair}"/><circle cx="57" cy="49" r="2.6" fill="${hair}"/>`+
+      `<path d="M44 60q6 3 12 0" fill="none" stroke="${mouth}" stroke-width="2.6" stroke-linecap="round"/>`+
+      `</svg>`;
+  }
   if(p.kind==="woman2"){              // Amanda — blonde bob, distinct from Maria
     const blonde="#e0b352";
     return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
@@ -295,6 +363,31 @@ function avatarSVG(p){
       `<path d="M30 48c0-17 9-27 20-27s20 10 20 27c-5-9-12-12-20-12s-15 3-20 12z" fill="${blonde}"/>`+
       `<ellipse cx="43" cy="50" rx="2.4" ry="3" fill="${hair}"/><ellipse cx="57" cy="50" rx="2.4" ry="3" fill="${hair}"/>`+
       `<path d="M43 59q7 6 14 0" fill="none" stroke="${mouth}" stroke-width="2.4" stroke-linecap="round"/>`+
+      `</svg>`;
+  }
+  if(p.kind==="woman3"){              // Heidi — auburn hair with a side ponytail
+    const auburn="#a8432a";
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+      `<rect width="100" height="100" fill="${bg}"/>`+
+      `<ellipse cx="74" cy="46" rx="9" ry="17" fill="${auburn}"/>`+   // ponytail
+      `<path d="M26 52c0-19 11-31 24-31s24 12 24 31v22q0 7-7 7h-2V54H35v27h-2q-7 0-7-7z" fill="${auburn}"/>`+
+      `<path d="M30 92c2-12 9-18 20-18s18 6 20 18z" fill="#e7a781"/>`+
+      `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+      `<path d="M30 48c0-17 9-27 20-27s20 10 20 27c-5-9-12-12-20-12s-15 3-20 12z" fill="${auburn}"/>`+
+      `<ellipse cx="43" cy="50" rx="2.4" ry="3" fill="${hair}"/><ellipse cx="57" cy="50" rx="2.4" ry="3" fill="${hair}"/>`+
+      `<path d="M43 59q7 6 14 0" fill="none" stroke="${mouth}" stroke-width="2.4" stroke-linecap="round"/>`+
+      `</svg>`;
+  }
+  if(p.kind==="woman4"){              // Yangsi — straight black hair with blunt bangs
+    const black="#241f29";
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+      `<rect width="100" height="100" fill="${bg}"/>`+
+      `<path d="M24 54c0-21 12-33 26-33s26 12 26 33v30h-9V56H33v28h-9z" fill="${black}"/>`+   // long straight hair
+      `<path d="M30 92c2-12 9-18 20-18s18 6 20 18z" fill="#e7a781"/>`+
+      `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+      `<path d="M28 46c2-16 11-25 22-25s20 9 22 25c-6-4-9-7-12-13-3 7-19 8-32 13z" fill="${black}"/>`+ // blunt bangs
+      `<ellipse cx="43" cy="51" rx="2.4" ry="3" fill="${hair}"/><ellipse cx="57" cy="51" rx="2.4" ry="3" fill="${hair}"/>`+
+      `<path d="M44 60q6 5 12 0" fill="none" stroke="${mouth}" stroke-width="2.4" stroke-linecap="round"/>`+
       `</svg>`;
   }
   return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
@@ -348,9 +441,20 @@ function setGraphNode(name, state){
   el.classList.remove("active","done");
   if(state) el.classList.add(state);
 }
-function clearGraph(){ setGraphNode("research",null); setGraphNode("sourcing",null); $("#graphStatus").textContent=""; }
+// Research sub-pipeline node groups, in execution order. The third group runs
+// in PARALLEL (audience-researcher ∥ competitor-analyst).
+const GRAPH_GROUPS=[["trend-scout"],["market-analyst"],["audience-researcher","competitor-analyst"],["predictor"]];
+const GRAPH_NODES=[...GRAPH_GROUPS.flat(),"sourcing"];
+function clearGraph(){ GRAPH_NODES.forEach(n=>setGraphNode(n,null)); $("#graphStatus").textContent=""; }
 function graphDone(){
-  ["research","sourcing"].forEach(n=>{ const el=$("#gn-"+n); if(el&&el.classList.contains("active")){ el.classList.remove("active"); el.classList.add("done"); } });
+  GRAPH_NODES.forEach(n=>{ const el=$("#gn-"+n); if(el&&el.classList.contains("active")){ el.classList.remove("active"); el.classList.add("done"); } });
+}
+// Mark a research node active and finalise all earlier groups as done.
+function advanceGraph(name){
+  const gi=GRAPH_GROUPS.findIndex(g=>g.includes(name));
+  if(gi<0) return;
+  for(let i=0;i<gi;i++) GRAPH_GROUPS[i].forEach(n=>setGraphNode(n,"done"));
+  setGraphNode(name,"active");
 }
 
 function renderTeam(){
@@ -377,6 +481,18 @@ function renderTeam(){
         `<span class="status" id="st-${m.key||''}"></span>`;
       teamEl.appendChild(head); lastStage=stage;
     }
+    const person=AGENT_PEOPLE[id];
+    if(person){   // named specialist — same avatar+name style as the stage leads
+      const row=document.createElement("div");
+      row.className="stage-head sub-person"; row.id="ag-"+id;
+      row.innerHTML=
+        `<span class="avatar" id="av-${person.key}" title="${esc(person.name)} — ${esc(person.role)}" `+
+        `style="background:${person.color}">${avatarSVG(person)}</span>`+
+        `<span class="stage-label"><b class="person">${esc(person.name)}</b> · ${esc(person.role)}</span>`+
+        `<span class="status" id="st-${person.key}"></span>`;
+      teamEl.appendChild(row);
+      return;
+    }
     const d=document.createElement("div");
     d.className="agent-chip"; d.id="ag-"+id;
     d.innerHTML=`<span class="pip"></span>${label}`;
@@ -387,6 +503,11 @@ function setAgent(id,state){
   const el=$("#ag-"+id); if(!el)return;
   el.classList.remove("active","done");
   if(state) el.classList.add(state);
+  const person=AGENT_PEOPLE[id];
+  if(person){   // toggle the specialist's own avatar + status pill
+    const av=$("#av-"+person.key); if(av) av.classList.toggle("active", state==="active");
+    setStatus(person.key, state==="active" ? "working" : (state==="done" ? "finished" : "idle"));
+  }
   const m=PEOPLE[agentStage[id]];
   if(m){ const av=$("#av-"+m.key); if(av) av.classList.toggle("active", state==="active"); }
 }
@@ -399,9 +520,9 @@ function setStatus(key,state){
   if(state==="idle"){ el.textContent=""; el.className="status"; return; }
   el.textContent=state; el.className="status "+state;
 }
-function clearStatuses(){ ["orc","s1","s2"].forEach(k=>setStatus(k,"idle")); }
+function clearStatuses(){ ["orc","s1","s2","aud","comp","pred"].forEach(k=>setStatus(k,"idle")); }
 function finishWorking(){  // any still-"working" pill becomes finished
-  ["orc","s1","s2"].forEach(k=>{
+  ["orc","s1","s2","aud","comp","pred"].forEach(k=>{
     const el=$("#st-"+k);
     if(el && el.classList.contains("working")) setStatus(k,"finished");
   });
@@ -466,11 +587,10 @@ function handle(ev){
   switch(ev.type){
     case "stage":
       activeSub=null;
-      if(ev.stage==="sourcing"){ setStatus("s1","finished"); setGraphNode("research","done"); }
+      if(ev.stage==="sourcing"){ setStatus("s1","finished"); GRAPH_GROUPS.flat().forEach(n=>setGraphNode(n,"done")); }
       if(STAGE_KEY[ev.stage]) setStatus(STAGE_KEY[ev.stage],"working");
-      if(ev.stage==="research") setGraphNode("research","active");
       if(ev.stage==="sourcing") setGraphNode("sourcing","active");
-      $("#graphStatus").textContent = "· running "+esc(ev.stage)+" node";
+      $("#graphStatus").textContent = "· running "+esc(ev.stage)+" stage";
       addEv("stage","—",`<b>${esc(ev.label||ev.stage)}</b>`);
       $("#status").textContent="running";
       break;
@@ -478,6 +598,7 @@ function handle(ev){
     case "subagent":
       if(activeSub) setAgent(activeSub,"done");
       activeSub=ev.name; setAgent("lead","active"); setAgent(ev.name,"active");
+      advanceGraph(ev.name);
       addEv("sub","➤",`Delegated to <b>${esc(ev.name)}</b>`+(ev.task?`<div class="meta">${esc(ev.task)}</div>`:""));
       break;
     case "tool":

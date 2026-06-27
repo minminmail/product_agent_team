@@ -45,18 +45,25 @@ Run this pipeline using your subagents (delegate with the Task tool):
 1. Call the `trend-scout` subagent to gather 8-15 specific emerging candidate
    products in this category, each with a rising signal and a cited source.
 2. Call the `market-analyst` subagent to score every candidate on the five
-   dimensions (demand, growth, margin, competition, feasibility, 0-10 each).
-3. Call the `predictor` subagent to turn those sub-scores into final 0-100
+   dimensions (demand, growth, margin, competition, feasibility, 0-10 each) and
+   to research pricing (typical price, range, position, willingness to pay).
+3. Call the `audience-researcher` subagent to build 3-4 target customer segments
+   and buyer personas for the category and its candidates.
+4. Call the `competitor-analyst` subagent to profile 4-6 rival brands
+   (positioning, messaging, pricing, ad/marketing spend, strengths/gaps).
+5. Call the `predictor` subagent to turn the sub-scores into final 0-100
    opportunity scores (it must use the {TOOL_SCORE} tool) and rank them.
-4. Take the top {top} ranked products. Then call the `{TOOL_SAVE}` tool with:
+6. Take the top {top} ranked products. Then call the `{TOOL_SAVE}` tool with:
    category="{category}", output_dir="{output_dir}", and products=[...] where
    each product is an object: name, score, verdict, rationale, evidence (a short
-   source note or URL).
+   source note or URL), and pricing (the market-analyst's pricing block).
 
 Finally, output a clean Markdown report to me with these sections:
   # Product Predictions: {category}
   - a 2-3 sentence executive summary
-  - a Markdown table of the top {top}: Rank | Product | Score | Verdict | Why
+  - a Markdown table of the top {top}: Rank | Product | Score | Verdict | Price | Why
+  - an "Audience & personas" section summarising the target segments
+  - a "Competitive landscape" section summarising the key rivals and whitespace
   - a short "Methodology & caveats" note (predictions are probabilistic).
 
 Be concrete and evidence-driven. Do not fabricate sources.
@@ -185,4 +192,57 @@ async def run_stream(
                     "report": report or getattr(message, "result", "") or "",
                 }
     except Exception as exc:  # surface failures to the UI instead of dying silently
+        yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
+
+
+async def run_segment(
+    prompt: str,
+    model: str,
+    output_dir: str,
+    collect: list[str] | None = None,
+) -> AsyncIterator[dict]:
+    """Run ONE focused segment of the pipeline (a single lead prompt) and yield
+    UI events, without emitting the pipeline-level 'start'/'result' frames.
+
+    Used by the decomposed LangGraph nodes, where each node drives a single
+    subagent (or the predictor + save) as its own query and threads its textual
+    output to the next node via `collect`. Reuses the same options/tooling and
+    SDK-message translation as run_stream().
+    """
+    output_dir = os.path.abspath(output_dir)
+    options = _make_options(model, output_dir)
+    tool_use_owner: dict[str, str] = {}
+    try:
+        async for message in query(prompt=prompt, options=options):
+            if isinstance(message, AssistantMessage):
+                agent = "lead" if not message.parent_tool_use_id else "subagent"
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        if block.text.strip():
+                            if collect is not None:
+                                collect.append(block.text)
+                            yield {"type": "text", "agent": agent, "text": block.text}
+                    elif isinstance(block, ThinkingBlock):
+                        yield {"type": "thinking", "agent": agent}
+                    elif isinstance(block, ToolUseBlock):
+                        name = block.name
+                        tin = block.input if isinstance(block.input, dict) else {}
+                        if name in ("Task", "Agent"):
+                            sub = (
+                                tin.get("subagent_type")
+                                or tin.get("subagentType")
+                                or tin.get("name")
+                                or "subagent"
+                            )
+                            tool_use_owner[block.id] = sub
+                            yield {"type": "subagent", "name": sub,
+                                   "task": _short(tin.get("description")
+                                                  or tin.get("prompt", ""), 200)}
+                        else:
+                            tool_use_owner[block.id] = name
+                            yield {"type": "tool", "name": name, "agent": agent,
+                                   "summary": _tool_summary(name, tin)}
+            # ResultMessage intentionally ignored: this is a segment, not the
+            # whole pipeline — the graph emits the single pipeline 'result'.
+    except Exception as exc:
         yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
