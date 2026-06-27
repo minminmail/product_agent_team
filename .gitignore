@@ -1,6 +1,9 @@
 # Secrets
 .env
 
+# User accounts DB (password hashes / sessions)
+users.db
+
 # Python
 __pycache__/
 *.py[cod]
