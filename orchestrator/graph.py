@@ -53,6 +53,7 @@ class PipelineState(TypedDict, total=False):
     analysis_text: str          # live: market-analyst output
     audience_text: str          # live: audience-researcher output
     competitor_text: str        # live: competitor-analyst output
+    failed: bool                # an upstream node errored → skip the rest
     research_ok: bool
 
 
@@ -136,13 +137,18 @@ def _build_graph(emit):
                         "text": f"Found {len(cands)} emerging candidates with rising signals."})
             return {"candidates": cands}
         from product_researcher.events import run_segment
-        text: list[str] = []
+        text: list[str] = []; err = False
         async for ev in run_segment(_trend_prompt(state["category"]),
                                     state["model"], state["reports_dir"], text):
+            if ev.get("type") == "error":
+                err = True
             await emit(ev)
-        return {"candidates_text": "\n".join(text)}
+        return {"candidates_text": "\n".join(text), **({"failed": True} if err else {})}
 
     async def market_analyst_node(state: PipelineState) -> dict:
+        # If the orchestrator/trend stage failed, do not trigger this agent.
+        if state.get("failed"):
+            return {}
         await emit({"type": "subagent", "name": "market-analyst",
                     "task": "score demand / growth / margin / competition / feasibility + pricing"})
         if state["mock"]:
@@ -154,14 +160,18 @@ def _build_graph(emit):
             await emit({"type": "text", "agent": "subagent", "text": "Scored all candidates."})
             return {"analysed": analysed}
         from product_researcher.events import run_segment
-        text: list[str] = []
+        text: list[str] = []; err = False
         async for ev in run_segment(_analyst_prompt(state["category"], state.get("candidates_text", "")),
                                     state["model"], state["reports_dir"], text):
+            if ev.get("type") == "error":
+                err = True
             await emit(ev)
-        return {"analysis_text": "\n".join(text)}
+        return {"analysis_text": "\n".join(text), **({"failed": True} if err else {})}
 
     async def audience_node(state: PipelineState) -> dict:
         # Parallel branch A — depends only on market_analyst, not competitor_node.
+        if state.get("failed"):
+            return {}
         await emit({"type": "subagent", "name": "audience-researcher",
                     "task": "build target segments and buyer personas"})
         if state["mock"]:
@@ -181,6 +191,8 @@ def _build_graph(emit):
 
     async def competitor_node(state: PipelineState) -> dict:
         # Parallel branch B — runs concurrently with audience_node.
+        if state.get("failed"):
+            return {}
         await emit({"type": "subagent", "name": "competitor-analyst",
                     "task": "profile rival brands: positioning, messaging, ad spend"})
         if state["mock"]:
@@ -200,6 +212,10 @@ def _build_graph(emit):
 
     async def predictor_node(state: PipelineState) -> dict:
         # Fan-in: only runs after BOTH audience_node and competitor_node finish.
+        # If an upstream stage failed, do not trigger — leave research_ok unset
+        # so the conditional edge routes to END (supplier sourcing is skipped).
+        if state.get("failed"):
+            return {"research_ok": False}
         await emit({"type": "subagent", "name": "predictor",
                     "task": "compute opportunity scores and rank"})
         if state["mock"]:

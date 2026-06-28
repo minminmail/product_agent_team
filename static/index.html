@@ -71,19 +71,30 @@
   .status{margin-left:auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
        padding:2px 9px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
   .status:empty{display:none}
+  .status.ns{color:var(--muted);background:transparent;border-color:var(--border)}
   .status.waiting{color:var(--muted)}
   .status.working{color:#0d1117;background:var(--amber);border-color:var(--amber)}
   .status.finished{color:#06210f;background:var(--green);border-color:var(--green)}
-  .status.failed{color:#fff;background:var(--red);border-color:var(--red)}
+  .status.failed{color:#fff;background:var(--red);border-color:var(--red);cursor:pointer}
+  .status.failed::after{content:" ⓘ";font-size:9px}
+  .status.failed:hover{filter:brightness(1.12)}
+  .failpop{position:fixed;z-index:9999;background:var(--panel2);border:1px solid var(--red);
+       border-radius:10px;padding:12px 14px;box-shadow:0 10px 34px rgba(0,0,0,.55);font-size:13px;color:var(--text)}
+  .failpop-h{font-weight:700;color:#ff7b72;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .failpop-m{white-space:pre-wrap;line-height:1.45;word-break:break-word}
+  .failpop-m + .failpop-m{margin-top:8px;border-top:1px solid var(--border);padding-top:8px}
+  .failpop-x{margin-top:10px;font-size:11px;color:var(--muted)}
   .avatar{width:60px;height:60px;border-radius:50%;overflow:hidden;flex:0 0 auto;
        box-shadow:0 0 0 1px var(--border);transition:.2s}
   .avatar.active{box-shadow:0 0 0 2px var(--accent2),0 0 12px 1px rgba(188,140,255,.45)}
   .agent-chip{display:flex;align-items:center;gap:7px;background:var(--chip);border:1px solid var(--border);
-       border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted);transition:.2s}
-  .agent-chip .pip{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+       border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted);transition:.2s;flex-basis:100%;margin-left:22px}
+  .agent-chip .pip{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:0 0 auto}
   .agent-chip.active{color:var(--text);border-color:var(--accent2);background:#241d33}
   .agent-chip.active .pip{background:var(--accent2);box-shadow:0 0 0 3px rgba(188,140,255,.2)}
   .agent-chip.done .pip{background:var(--green)}
+  .agent-chip.failed{color:var(--text);border-color:var(--red);background:#2a1416}
+  .agent-chip.failed .pip{background:var(--red)}
   .timeline{flex:1;overflow:auto;padding:14px 20px;min-height:0}
   .ev{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:13px}
   .ev .ic{flex:0 0 22px;text-align:center}
@@ -495,29 +506,64 @@ function renderTeam(){
     }
     const d=document.createElement("div");
     d.className="agent-chip"; d.id="ag-"+id;
-    d.innerHTML=`<span class="pip"></span>${label}`;
+    d.innerHTML=`<span class="pip"></span>${label}<span class="status ns" id="cs-${id}">not started</span>`;
     teamEl.appendChild(d);
   });
 }
 function setAgent(id,state){
   const el=$("#ag-"+id); if(!el)return;
-  el.classList.remove("active","done");
+  el.classList.remove("active","done","failed");
   if(state) el.classList.add(state);
+  // each chip shows its own status, defaulting to "not started"
+  const cs=$("#cs-"+id);
+  if(cs){
+    cs.textContent = state==="active" ? "working" : state==="done" ? "done" : state==="failed" ? "failed" : "not started";
+    cs.className = "status " + (state==="active" ? "working" : state==="done" ? "finished" : state==="failed" ? "failed" : "ns");
+  }
   const person=AGENT_PEOPLE[id];
   if(person){   // toggle the specialist's own avatar + status pill
     const av=$("#av-"+person.key); if(av) av.classList.toggle("active", state==="active");
-    setStatus(person.key, state==="active" ? "working" : (state==="done" ? "finished" : "idle"));
+    setStatus(person.key, state==="active" ? "working" : state==="done" ? "finished" : state==="failed" ? "failed" : "idle");
   }
   const m=PEOPLE[agentStage[id]];
   if(m){ const av=$("#av-"+m.key); if(av) av.classList.toggle("active", state==="active"); }
 }
 function clearAgents(){AGENTS.forEach(([id])=>setAgent(id,null));}
 
+// --- Failure-reason popup: click any "failed" status pill to see why. ---
+let failPop=null;
+function ensureFailPop(){
+  if(failPop) return failPop;
+  failPop=document.createElement("div");
+  failPop.className="failpop"; failPop.style.display="none";
+  failPop.addEventListener("click", e=>e.stopPropagation());
+  document.body.appendChild(failPop);
+  return failPop;
+}
+function showFailPopup(anchor){
+  const p=ensureFailPop();
+  const msgs = failMessages.length ? failMessages : ["No failure detail was reported."];
+  p.innerHTML = `<div class="failpop-h">⚠ Why this failed</div>`+
+    msgs.map(m=>`<div class="failpop-m">${esc(m)}</div>`).join("")+
+    `<div class="failpop-x">Click anywhere to dismiss</div>`;
+  p.style.display="block";
+  const pw=Math.min(380, window.innerWidth-20);
+  p.style.width=pw+"px";
+  // position:fixed → use viewport coords directly (works in any scroll container)
+  const r=anchor.getBoundingClientRect();
+  let left=Math.min(Math.max(r.left,10), window.innerWidth-pw-10);
+  let top=r.bottom+6;
+  if(top+p.offsetHeight > window.innerHeight-10) top=Math.max(10, r.top-p.offsetHeight-6); // flip above if needed
+  p.style.left=left+"px";
+  p.style.top=top+"px";
+}
+function hideFailPopup(){ if(failPop) failPop.style.display="none"; }
+
 // Per-agent status pills: idle | waiting | working | finished | failed.
 const STAGE_KEY={research:"s1", sourcing:"s2"};
 function setStatus(key,state){
   const el=$("#st-"+key); if(!el) return;
-  if(state==="idle"){ el.textContent=""; el.className="status"; return; }
+  if(state==="idle"){ el.textContent="not started"; el.className="status ns"; return; }
   el.textContent=state; el.className="status "+state;
 }
 function clearStatuses(){ ["orc","s1","s2","aud","comp","pred"].forEach(k=>setStatus(k,"idle")); }
@@ -554,6 +600,7 @@ function launch(kind){
   const cat=$("#cat").value.trim(); if(cat.length<2){$("#cat").focus();return;}
   const top=$("#top").value||10, model=$("#model").value, mock=mockMode;
   running=true; reportBuf=""; clearAgents(); activeSub=null; clearStatuses(); clearGraph();
+  runKind=kind; researchPhase=(kind!=="sourcing"); hadError=false; succeeded=false; failMessages=[]; hideFailPopup();
   if(kind==="pipeline"){ setStatus("orc","working"); setStatus("s1","waiting"); setStatus("s2","waiting"); }
   else if(kind==="sourcing"){ setStatus("s2","working"); }
   else { setStatus("s1","working"); }
@@ -583,21 +630,25 @@ function launch(kind){
 }
 
 let activeSub=null;
+// Run bookkeeping: which run kind, whether we're still in the research phase
+// (the "lead" chip belongs to research only), and whether the run succeeded.
+let runKind="research", researchPhase=false, hadError=false, succeeded=false;
+let failMessages=[];  // failure reason(s) for the current run, shown on click
 function handle(ev){
   switch(ev.type){
     case "stage":
       activeSub=null;
-      if(ev.stage==="sourcing"){ setStatus("s1","finished"); GRAPH_GROUPS.flat().forEach(n=>setGraphNode(n,"done")); }
+      if(ev.stage==="sourcing"){ researchPhase=false; setStatus("s1","finished"); GRAPH_GROUPS.flat().forEach(n=>setGraphNode(n,"done")); }
       if(STAGE_KEY[ev.stage]) setStatus(STAGE_KEY[ev.stage],"working");
       if(ev.stage==="sourcing") setGraphNode("sourcing","active");
       $("#graphStatus").textContent = "· running "+esc(ev.stage)+" stage";
       addEv("stage","—",`<b>${esc(ev.label||ev.stage)}</b>`);
       $("#status").textContent="running";
       break;
-    case "start": setAgent("lead","active"); break;
+    case "start": if(researchPhase) setAgent("lead","active"); break;
     case "subagent":
       if(activeSub) setAgent(activeSub,"done");
-      activeSub=ev.name; setAgent("lead","active"); setAgent(ev.name,"active");
+      activeSub=ev.name; if(researchPhase) setAgent("lead","active"); setAgent(ev.name,"active");
       advanceGraph(ev.name);
       addEv("sub","➤",`Delegated to <b>${esc(ev.name)}</b>`+(ev.task?`<div class="meta">${esc(ev.task)}</div>`:""));
       break;
@@ -610,16 +661,37 @@ function handle(ev){
       else { addEv("","💬",`<span class="txt">${esc(ev.text.slice(0,300))}</span>`); }
       break;
     case "result":
+      if(ev.is_error){ hadError=true; failMessages.push(ev.message || ev.report || "The run finished with errors."); }
+      else succeeded=true;
       reportBuf = ev.report || reportBuf; renderReport(true);
       $("#status").textContent= ev.is_error ? "finished with errors" : "complete";
       showStat("s-turns", ev.num_turns); showStat("s-time", fmtMs(ev.duration_ms));
       showStat("s-cost", ev.cost_usd!=null ? "$"+Number(ev.cost_usd).toFixed(4) : "—");
       addLinks(); addEv("","✅","Done.");
-      setAgent("lead","done"); if(activeSub) setAgent(activeSub,"done");
+      if(researchPhase) setAgent("lead", ev.is_error ? "failed" : "done");
+      if(activeSub) setAgent(activeSub, ev.is_error ? "failed" : "done");
       break;
-    case "error":
-      ["orc","s1","s2"].forEach(k=>{ const el=$("#st-"+k); if(el&&el.classList.contains("working")) setStatus(k,"failed"); });
+    case "error": {
+      activeSub=null; hadError=true; failMessages.push(ev.message || "Unknown error.");
+      // Per agent: if it was running → FAILED; if it finished → keep;
+      // if it never started → stays "not started". (Don't blanket-reset.)
+      AGENTS.forEach(([id])=>{
+        const el=$("#ag-"+id); if(!el) return;
+        if(el.classList.contains("active")) setAgent(id,"failed");
+        // keep an already-failed (or done) agent as-is; only never-run ones reset
+        else if(!el.classList.contains("done") && !el.classList.contains("failed")) setAgent(id,null);
+      });
+      // Orchestrator + stage pills follow the same rule (failed is sticky).
+      ["orc","s1","s2"].forEach(k=>{
+        const el=$("#st-"+k); if(!el) return;
+        if(el.classList.contains("working")) setStatus(k,"failed");
+        else if(!el.classList.contains("finished") && !el.classList.contains("failed")) setStatus(k,"idle");
+      });
+      // A graph node mid-run becomes failed; queued ones clear to not-started.
+      GRAPH_NODES.forEach(n=>{ const el=$("#gn-"+n); if(el && el.classList.contains("active")) setGraphNode(n,null); });
+      const oav=$("#av-orc"); if(oav) oav.classList.remove("active");
       addEv("err","❌",esc(ev.message)); $("#status").textContent="error"; break;
+    }
     case "done": finish(); break;
   }
 }
@@ -638,7 +710,18 @@ function addLinks(){
 }
 function finish(){
   running=false; if(es){es.close();es=null;}
-  finishWorking(); graphDone(); $("#graphStatus").textContent="";
+  // Resolve anything still running: success → finished/done, otherwise → failed.
+  // Agents that never started (waiting) fall back to "not started".
+  const good = succeeded && !hadError;
+  if(!good && !failMessages.length) failMessages.push("The run ended without finishing successfully.");
+  ["orc","s1","s2","aud","comp","pred"].forEach(k=>{
+    const el=$("#st-"+k); if(!el) return;
+    if(el.classList.contains("working")) setStatus(k, good?"finished":"failed");
+    else if(el.classList.contains("waiting")) setStatus(k,"idle");
+  });
+  AGENTS.forEach(([id])=>{ const el=$("#ag-"+id); if(el && el.classList.contains("active")) setAgent(id, good?"done":"failed"); });
+  GRAPH_NODES.forEach(n=>{ const el=$("#gn-"+n); if(el && el.classList.contains("active")) setGraphNode(n, good?"done":null); });
+  $("#graphStatus").textContent="";
   $("#run").disabled=false; $("#run").innerHTML=BTN_HTML.run;
   $("#pipe").disabled=false; $("#pipe").innerHTML=BTN_HTML.pipe;
   const orc=$("#av-orc"); if(orc) orc.classList.remove("active");
@@ -675,6 +758,15 @@ async function refreshSourceAvailability(){
 // --- one-time UI wiring (no API) ---
 $("#pipe").innerHTML=BTN_HTML.pipe; $("#run").innerHTML=BTN_HTML.run; $("#source").innerHTML=BTN_HTML.source;
 renderTeam();
+clearStatuses();  // every agent shows "not started" until a run begins
+// Click a "failed" status pill (chip or stage, anywhere) to see the reason.
+// Single document-level handler: open on a failed pill, close otherwise.
+document.addEventListener("click", e=>{
+  const pill=e.target.closest && e.target.closest(".status.failed");
+  if(pill){ showFailPopup(pill); }
+  else if(!(e.target.closest && e.target.closest(".failpop"))){ hideFailPopup(); }
+});
+window.addEventListener("resize", hideFailPopup);
 $("#pipe").addEventListener("click", ()=>launch("pipeline"));
 $("#run").addEventListener("click", ()=>launch("research"));
 $("#source").addEventListener("click", ()=>launch("sourcing"));

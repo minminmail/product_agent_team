@@ -120,6 +120,59 @@ def _tool_summary(name: str, tool_input: dict) -> str:
     return _short(tool_input)
 
 
+# Fatal API/account errors can arrive flagged as "success" (or not flagged at
+# all) while the real message sits in the result text. These phrases are
+# specific to such errors and won't appear in a legitimate product report.
+_FATAL_SIGNATURES = (
+    "credit balance is too low",
+    "your credit balance",
+    "purchase credits",
+    "plans & billing",
+    "authentication_error",
+    "invalid x-api-key",
+    "rate_limit_error",
+    "insufficient_quota",
+)
+
+
+def _looks_like_fatal(text: str) -> bool:
+    t = (text or "").lower()
+    return any(s in t for s in _FATAL_SIGNATURES)
+
+
+def _result_is_error(message, report: str = "") -> bool:
+    """Whether a ResultMessage is a genuine failure.
+
+    A fatal error in the output (e.g. "credit balance is too low") is always a
+    failure, even if the CLI didn't flag it. Conversely the CLI sometimes sets
+    is_error=True with subtype "success" and no errors after a turn that DID
+    produce a real report (it exits non-zero for shell consumers) — that is
+    benign.
+    """
+    if _looks_like_fatal(report):
+        return True
+    if not getattr(message, "is_error", False):
+        return False
+    subtype = getattr(message, "subtype", "") or ""
+    errors = getattr(message, "errors", None) or []
+    if subtype == "success" and not errors and report.strip():
+        return False  # clean success exit that produced real output
+    return True
+
+
+def _friendly_error(exc) -> str | None:
+    """A user-facing error string, or None if the exception itself is benign.
+
+    Returns None only for the "error result: success" case (caller then decides
+    based on whether real output exists). Strips internal CLI branding.
+    """
+    msg = str(exc)
+    if "error result: success" in msg.lower() and not _looks_like_fatal(msg):
+        return None
+    msg = msg.replace("Claude Code returned an error result:", "Agent run error:")
+    return f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__
+
+
 async def run_stream(
     category: str,
     top: int = 10,
@@ -136,6 +189,7 @@ async def run_stream(
     # and Task dispatches can be labelled with their subagent name.
     tool_use_owner: dict[str, str] = {}
     report_parts: list[str] = []
+    result_emitted = False
 
     options = _make_options(model, output_dir)
     prompt = build_lead_prompt(category, top, output_dir)
@@ -182,17 +236,31 @@ async def run_stream(
                                 "summary": _tool_summary(name, tin),
                             }
             elif isinstance(message, ResultMessage):
-                report = "".join(report_parts).strip()
+                report = "".join(report_parts).strip() or (getattr(message, "result", "") or "").strip()
+                is_err = _result_is_error(message, report)
+                if not is_err:
+                    result_emitted = True
                 yield {
                     "type": "result",
                     "duration_ms": getattr(message, "duration_ms", None),
                     "cost_usd": getattr(message, "total_cost_usd", None),
                     "num_turns": getattr(message, "num_turns", None),
-                    "is_error": getattr(message, "is_error", False),
-                    "report": report or getattr(message, "result", "") or "",
+                    "is_error": is_err,
+                    "report": report,
                 }
     except Exception as exc:  # surface failures to the UI instead of dying silently
-        yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
+        msg = _friendly_error(exc)
+        report = "".join(report_parts).strip()
+        if msg is None and not _looks_like_fatal(report):
+            # Benign non-zero exit AFTER a real turn — emit success if not already.
+            if not result_emitted and report:
+                yield {"type": "result", "duration_ms": None, "cost_usd": None,
+                       "num_turns": None, "is_error": False, "report": report}
+            elif not result_emitted:
+                yield {"type": "error",
+                       "message": "Agent run error: the run did not complete successfully."}
+        elif not result_emitted:
+            yield {"type": "error", "message": msg or ("Agent run error: " + (report or "failed"))}
 
 
 async def run_segment(
@@ -212,6 +280,7 @@ async def run_segment(
     output_dir = os.path.abspath(output_dir)
     options = _make_options(model, output_dir)
     tool_use_owner: dict[str, str] = {}
+    seg_error_sent = False
     try:
         async for message in query(prompt=prompt, options=options):
             if isinstance(message, AssistantMessage):
@@ -242,7 +311,20 @@ async def run_segment(
                             tool_use_owner[block.id] = name
                             yield {"type": "tool", "name": name, "agent": agent,
                                    "summary": _tool_summary(name, tin)}
-            # ResultMessage intentionally ignored: this is a segment, not the
-            # whole pipeline — the graph emits the single pipeline 'result'.
+            elif isinstance(message, ResultMessage):
+                # Segment results are normally ignored (the graph emits the single
+                # pipeline 'result'), but a genuine failure (e.g. credit balance)
+                # must surface so the node fails instead of returning empty text.
+                seg_report = "".join(collect or []).strip() or (getattr(message, "result", "") or "").strip()
+                if _result_is_error(message, seg_report):
+                    seg_error_sent = True
+                    yield {"type": "error",
+                           "message": "Agent run error: " + (seg_report or getattr(message, "subtype", "") or "failed")}
+        # Catch a fatal message that arrived only as assistant text.
+        if not seg_error_sent and _looks_like_fatal("".join(collect or [])):
+            seg_error_sent = True
+            yield {"type": "error", "message": "Agent run error: the agent reported a fatal error."}
     except Exception as exc:
-        yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
+        msg = _friendly_error(exc)
+        if msg is not None and not seg_error_sent:  # benign success exit → segment ok
+            yield {"type": "error", "message": msg}
