@@ -43,6 +43,41 @@ cp .env.example .env        # then paste your ANTHROPIC_API_KEY
 
 Get a key at https://console.anthropic.com/.
 
+## Sign in (email accounts)
+
+The dashboard is gated by a simple **email + password** login. On first visit you'll see a sign-in screen — click **Sign up** to create an account (email + a password of at least 8 characters), and you'll be logged straight in. Your email shows in the top-right with a **Log out** link.
+
+How it works: accounts live in a local SQLite file (`users.db`, gitignored) next to the app; passwords are stored as salted PBKDF2 hashes (never plaintext); login creates a server-side session referenced by an httpOnly cookie. All agent endpoints require a valid session. Override the DB location with `PR_USERS_DB=/path/to/users.db` if needed.
+
+### Email verification (optional)
+
+If you configure SMTP, signup sends a verification email with a confirmation link; until the user clicks it, a banner prompts them to verify (with a **Resend** button). By default verification is **informational** (it does not block usage). To *require* verification before running the agents, set `REQUIRE_VERIFICATION=true` — and even then it only enforces when SMTP is configured, so a broken mail setup can never lock anyone out.
+
+**Password reset** is included too: the login screen has a **Forgot password?** link that emails a time-limited reset link (`/?reset=<token>`); opening it shows a "set a new password" form. Reset emails also require SMTP. To avoid leaking which emails have accounts, the forgot endpoint always returns the same response.
+
+Set these in `.env` (the app reads them at startup):
+
+```
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USER=you@yourdomain.com
+SMTP_FROM=you@yourdomain.com
+SMTP_PASSWORD=        # see note below
+APP_BASE_URL=http://127.0.0.1:8000   # used to build the verify link
+```
+
+Test SMTP before relying on it:
+
+```bash
+python -m product_researcher.mailer you@yourdomain.com
+```
+
+> **Office 365 note:** Microsoft disables basic SMTP AUTH by default. If the mailbox has MFA, `SMTP_PASSWORD` must be an **App Password** (not your normal password), and the tenant must allow SMTP AUTH for that mailbox — otherwise login fails with "5.7.139 authentication unsuccessful". If you can't enable it, consider a transactional email API (SendGrid, SES, Postmark) instead.
+
+If SMTP isn't configured, signup still works — it just skips the email and shows an "email isn't verified" banner.
+
+> **Security note:** this is lightweight auth for a self-hosted/local dashboard. It does **not** include email verification, password reset, or rate limiting, and the session cookie is sent over plain HTTP on localhost. Before exposing it publicly, put it behind **HTTPS** (and set the cookie `secure` flag), and add verification/reset/rate-limiting.
+
 ## Run — Web dashboard (recommended)
 
 A local dashboard lets you launch a run and **watch the team work live** — which subagent is active, every web search and tool call, and the final report streaming in.
@@ -66,6 +101,9 @@ python -m product_researcher.main "smart home gadgets" --top 8
 
 # Agent 2 — sourcing (reads predictions_smart_home_gadgets.json from ./reports)
 python -m supplier_sourcer.main "smart home gadgets" --top 3 --per 10
+
+# Orchestrator (Amanda) — runs both stages in order, in one command
+python -m orchestrator.main "smart home gadgets" --top 8 --source-top 3 --per 10
 ```
 
 Useful options:
@@ -196,10 +234,44 @@ agent_team/
 │  ├─ events.py    # sourcing pipeline (reads predictions_*.json)
 │  ├─ mock.py      # fully offline sourcing pipeline
 │  └─ main.py      # sourcing CLI
-├─ static/index.html  # single-file dashboard frontend (Run research + Source suppliers)
+├─ orchestrator/            # Amanda — chains agent 1 → agent 2 in one run
+│  ├─ pipeline.py  # run_pipeline(): research then sourcing (deterministic, mock-aware)
+│  └─ main.py      # orchestrator CLI
+├─ static/index.html  # single-file dashboard (Run full pipeline + the two single-stage buttons)
 ├─ requirements.txt
 └─ .env.example
 ```
+
+### Orchestrator (Amanda)
+
+`orchestrator` is a tiny **deterministic** coordinator — no extra LLM. It runs the
+research agent, waits for its `predictions_*.json`, then runs the sourcing agent on
+it. The two agents stay independently runnable; Amanda just adds a one-shot path
+(CLI `python -m orchestrator.main …`, or the **Run full pipeline** button in the
+dashboard, `GET /api/pipeline`). If research produces no products, it stops before
+sourcing.
+
+#### Optional: LangGraph engine (proof-of-concept)
+
+The same pipeline is also implemented as a LangGraph `StateGraph` in
+`orchestrator/graph.py` — research and sourcing as **nodes**, with a
+**conditional edge** that only routes to sourcing if research produced products.
+It yields the identical event stream, so the dashboard works unchanged.
+
+```bash
+pip install langgraph
+python -m orchestrator.main "smart home gadgets" --mock --langgraph   # CLI
+USE_LANGGRAPH=1 python -m product_researcher.server                   # dashboard
+```
+
+```
+START → research → (has products?) → sourcing → END
+                          └────────── no ─────────────→ END
+```
+
+Optional and off by default. For this linear, 2-stage flow the deterministic
+orchestrator is simpler; LangGraph earns its place once you add branching,
+loops/retries, parallel fan-out, checkpointing, or human-in-the-loop.
 
 ## Tuning
 

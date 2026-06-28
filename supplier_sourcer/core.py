@@ -44,12 +44,19 @@ def compute_supplier_score(
     product: str = "",
     country: str = "",
     certifications: list | None = None,
+    phone: str = "",
+    email: str = "",
+    address: str = "",
+    hours: str = "",
+    website: str = "",
 ) -> dict:
     """Return a 0-100 supplier-quality score payload from five 0-10 sub-scores.
 
     `certification` is the 0-10 strength of the supplier's certifications (10 =
     full, verifiable EU certs). `certifications` is the human-readable list of
     actual certs (e.g. ["CE", "ISO 9001", "REACH"]) carried through for display.
+    `phone`/`email`/`address`/`hours`/`website` are the supplier's contact
+    details, carried through for the shortlist.
     """
     quality = _clamp(float(quality))
     reputation = _clamp(float(reputation))
@@ -82,6 +89,13 @@ def compute_supplier_score(
         "score": score,
         "tier": tier,
         "certifications": certifications or [],
+        "contact": {
+            "phone": phone or "",
+            "email": email or "",
+            "address": address or "",
+            "hours": hours or "",
+            "website": website or "",
+        },
         "breakdown": {
             "quality": quality,
             "reputation": reputation,

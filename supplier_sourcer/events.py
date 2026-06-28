@@ -64,17 +64,22 @@ Do this:
 2. Call the `{TOOL_SAVE_SUPPLIERS}` tool with: category="{category}",
    output_dir="{output_dir}", and products=[...] where each item is
    {{product, score, suppliers:[{{name, country, score, tier, certifications,
-   reputation_note, evidence}}]}}.
+   contact:{{phone, email, address, hours, website}}, reputation_note,
+   evidence}}]}}.
 
 Finally, output a clean Markdown report to me:
   # Supplier Shortlist: {category}
   - a 1-2 sentence summary
   - for each product, a subheading with the product name and a Markdown table of
-    its suppliers: Rank | Supplier | Country | Score | Tier | Certifications
-  - a short "Caveats" note (verify suppliers and certifications before ordering).
+    its suppliers: Rank | Supplier | Country | Score | Tier | Certifications |
+    Phone | Email | Website
+  - under each table, a short "Contact" list per supplier with its full address
+    and work hours (these are too long for the table)
+  - a short "Caveats" note (verify suppliers, certifications and contact details
+    before ordering).
 
-Be concrete and evidence-driven. Do not fabricate suppliers, certifications, or
-sources."""
+Be concrete and evidence-driven. Do not fabricate suppliers, certifications,
+contact details, or sources."""
 
 
 def _make_options(model: str, output_dir: str):
@@ -127,6 +132,47 @@ def _tool_summary(name: str, tool_input: dict) -> str:
     return _short(tool_input)
 
 
+_FATAL_SIGNATURES = (
+    "credit balance is too low",
+    "your credit balance",
+    "purchase credits",
+    "plans & billing",
+    "authentication_error",
+    "invalid x-api-key",
+    "rate_limit_error",
+    "insufficient_quota",
+)
+
+
+def _looks_like_fatal(text: str) -> bool:
+    t = (text or "").lower()
+    return any(s in t for s in _FATAL_SIGNATURES)
+
+
+def _result_is_error(message, report: str = "") -> bool:
+    """Genuine failure? A fatal error in the output (e.g. "credit balance is too
+    low") is always a failure even if unflagged; a clean is_error+subtype
+    "success" exit that produced real output is benign."""
+    if _looks_like_fatal(report):
+        return True
+    if not getattr(message, "is_error", False):
+        return False
+    subtype = getattr(message, "subtype", "") or ""
+    errors = getattr(message, "errors", None) or []
+    if subtype == "success" and not errors and report.strip():
+        return False
+    return True
+
+
+def _friendly_error(exc) -> str | None:
+    """User-facing error string, or None if the exception itself is benign."""
+    msg = str(exc)
+    if "error result: success" in msg.lower() and not _looks_like_fatal(msg):
+        return None
+    msg = msg.replace("Claude Code returned an error result:", "Agent run error:")
+    return f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__
+
+
 async def run_stream(
     category: str,
     reports_dir: str = "./reports",
@@ -165,6 +211,7 @@ async def run_stream(
 
     tool_use_owner: dict[str, str] = {}
     report_parts: list[str] = []
+    result_emitted = False
 
     options = _make_options(model, output_dir)
     prompt = build_lead_prompt(category, products, output_dir, per_product)
@@ -209,14 +256,27 @@ async def run_stream(
                                 "summary": _tool_summary(name, tin),
                             }
             elif isinstance(message, ResultMessage):
-                report = "".join(report_parts).strip()
+                report = "".join(report_parts).strip() or (getattr(message, "result", "") or "").strip()
+                is_err = _result_is_error(message, report)
+                if not is_err:
+                    result_emitted = True
                 yield {
                     "type": "result",
                     "duration_ms": getattr(message, "duration_ms", None),
                     "cost_usd": getattr(message, "total_cost_usd", None),
                     "num_turns": getattr(message, "num_turns", None),
-                    "is_error": getattr(message, "is_error", False),
-                    "report": report or getattr(message, "result", "") or "",
+                    "is_error": is_err,
+                    "report": report,
                 }
     except Exception as exc:
-        yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
+        msg = _friendly_error(exc)
+        report = "".join(report_parts).strip()
+        if msg is None and not _looks_like_fatal(report):
+            if not result_emitted and report:
+                yield {"type": "result", "duration_ms": None, "cost_usd": None,
+                       "num_turns": None, "is_error": False, "report": report}
+            elif not result_emitted:
+                yield {"type": "error",
+                       "message": "Agent run error: the run did not complete successfully."}
+        elif not result_emitted:
+            yield {"type": "error", "message": msg or ("Agent run error: " + (report or "failed"))}

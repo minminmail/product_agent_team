@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Product Researcher — Agent Dashboard</title>
+<title>Marketing Agent Team — Agent Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <style>
   :root{
@@ -23,6 +23,9 @@
   @media(max-width:900px){.wrap{grid-template-columns:1fr;height:auto}}
   .left{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
   .controls{padding:16px 20px;border-bottom:1px solid var(--border);background:var(--panel)}
+  .cfgbox{border:1px solid var(--border);border-radius:10px;background:var(--panel2);padding:14px 14px 16px;margin-bottom:14px}
+  .cfgbox-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;
+       margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
   .row{display:flex;gap:10px;margin-bottom:10px}
   label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
   input,select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
@@ -31,8 +34,16 @@
   button{background:var(--accent);color:#06131f;border:0;border-radius:8px;padding:10px 16px;font-weight:650;
        cursor:pointer;font-size:14px;width:100%}
   button:disabled{opacity:.5;cursor:not-allowed}
-  button.secondary{background:var(--panel2);color:var(--accent);border:1px solid var(--border);margin-top:8px}
-  button.secondary:hover{border-color:var(--accent)}
+  button.agent-btn{display:flex;align-items:center;justify-content:center;gap:9px;
+       background:var(--panel2);color:var(--text);border:1px solid var(--border);margin-top:8px}
+  button.agent-btn:hover:not(:disabled){border-color:var(--accent)}
+  button.agent-btn.primary{background:#0e6b4e;color:#eafff6;border-color:#14a06f}
+  button.agent-btn.primary:hover:not(:disabled){border-color:#1ec98c}
+  .or-row{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;margin:10px 0 6px}
+  .or-row:before,.or-row:after{content:"";flex:1;height:1px;background:var(--border)}
+  .ev.stage{color:var(--text);font-weight:600;border-top:1px solid var(--border);margin-top:4px;padding-top:9px}
+  .btn-av{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+  .btn-av svg,.avatar svg{display:block;width:100%;height:100%}
   .toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:6px}
   .toggle .seg{width:50%;background:var(--bg);color:var(--muted);border:0;border-radius:0;
        padding:9px 12px;font-weight:600;font-size:13px;cursor:pointer}
@@ -41,15 +52,49 @@
   .toggle .seg.active#seg-mock{background:var(--amber);color:#0d1117}
   .mode-hint{font-size:11px;color:var(--muted);margin-bottom:12px}
   .team{display:flex;gap:8px;padding:12px 20px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--panel)}
+  .graphwrap{padding:12px 20px;border-bottom:1px solid var(--border);background:var(--panel2)}
+  .graphwrap .ttl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .gnode > rect{transition:stroke .25s, fill .25s}
+  .gnode.active > rect{stroke:var(--amber);stroke-width:3;fill:#2a2412}
+  .gnode.done > rect{stroke:var(--green);stroke-width:3}
   .stage-label{flex-basis:100%;font-size:10px;color:var(--muted);text-transform:uppercase;
        letter-spacing:.07em;font-weight:700;margin:6px 0 -2px}
   .stage-label:first-child{margin-top:0}
+  .stage-head{flex-basis:100%;display:flex;align-items:center;gap:9px;margin:8px 0 2px}
+  .stage-head:first-child{margin-top:0}
+  .sub-person{margin:4px 0 2px 22px}
+  .sub-person .avatar{width:42px;height:42px}
+  .sub-person .stage-label{font-size:13px}
+  .sub-person .stage-label .person{font-weight:600}
+  .stage-head .stage-label{flex-basis:auto;margin:0}
+  .stage-head .person{color:var(--text);font-weight:650;text-transform:none;letter-spacing:0}
+  .status{margin-left:auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+       padding:2px 9px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+  .status:empty{display:none}
+  .status.ns{color:var(--muted);background:transparent;border-color:var(--border)}
+  .status.waiting{color:var(--muted)}
+  .status.working{color:#0d1117;background:var(--amber);border-color:var(--amber)}
+  .status.finished{color:#06210f;background:var(--green);border-color:var(--green)}
+  .status.failed{color:#fff;background:var(--red);border-color:var(--red);cursor:pointer}
+  .status.failed::after{content:" ⓘ";font-size:9px}
+  .status.failed:hover{filter:brightness(1.12)}
+  .failpop{position:fixed;z-index:9999;background:var(--panel2);border:1px solid var(--red);
+       border-radius:10px;padding:12px 14px;box-shadow:0 10px 34px rgba(0,0,0,.55);font-size:13px;color:var(--text)}
+  .failpop-h{font-weight:700;color:#ff7b72;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .failpop-m{white-space:pre-wrap;line-height:1.45;word-break:break-word}
+  .failpop-m + .failpop-m{margin-top:8px;border-top:1px solid var(--border);padding-top:8px}
+  .failpop-x{margin-top:10px;font-size:11px;color:var(--muted)}
+  .avatar{width:60px;height:60px;border-radius:50%;overflow:hidden;flex:0 0 auto;
+       box-shadow:0 0 0 1px var(--border);transition:.2s}
+  .avatar.active{box-shadow:0 0 0 2px var(--accent2),0 0 12px 1px rgba(188,140,255,.45)}
   .agent-chip{display:flex;align-items:center;gap:7px;background:var(--chip);border:1px solid var(--border);
-       border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted);transition:.2s}
-  .agent-chip .pip{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+       border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted);transition:.2s;flex-basis:100%;margin-left:22px}
+  .agent-chip .pip{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:0 0 auto}
   .agent-chip.active{color:var(--text);border-color:var(--accent2);background:#241d33}
   .agent-chip.active .pip{background:var(--accent2);box-shadow:0 0 0 3px rgba(188,140,255,.2)}
   .agent-chip.done .pip{background:var(--green)}
+  .agent-chip.failed{color:var(--text);border-color:var(--red);background:#2a1416}
+  .agent-chip.failed .pip{background:var(--red)}
   .timeline{flex:1;overflow:auto;padding:14px 20px;min-height:0}
   .ev{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:13px}
   .ev .ic{flex:0 0 22px;text-align:center}
@@ -75,49 +120,182 @@
   .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);
        border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px}
   @keyframes s{to{transform:rotate(360deg)}}
+  .banner{display:flex;align-items:center;gap:12px;padding:9px 24px;font-size:13px;
+       background:#3a2d12;color:#f0d8a0;border-bottom:1px solid #5a4a20}
+  .banner.success{background:#11331f;color:#9be7b4;border-bottom-color:#1f5a33}
+  .banner a{color:#fff;text-decoration:underline;cursor:pointer;margin-left:auto;white-space:nowrap}
+  .userbox{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+  .userbox .email{color:var(--text)}
+  .userbox a{color:var(--accent);text-decoration:none;cursor:pointer}
+  .auth-gate{position:fixed;inset:0;background:rgba(8,11,16,.94);display:flex;align-items:center;justify-content:center;z-index:50}
+  .auth-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:30px;width:340px;display:flex;flex-direction:column;gap:12px}
+  .auth-card h2{margin:0;font-size:21px}
+  .auth-brand{color:var(--accent);font-weight:700;font-size:12px;letter-spacing:.6px;text-transform:uppercase}
+  .auth-card input{width:100%}
+  .auth-err{color:var(--red);font-size:12px;min-height:15px}
+  .auth-msg{color:var(--green);font-size:12px;min-height:1px}
+  .auth-toggle{font-size:12px;color:var(--muted);text-align:center}
+  .auth-toggle b{color:var(--text);font-weight:600}
+  .auth-actions{display:flex;gap:10px}
+  .auth-actions button{flex:1;width:auto}
+  .auth-actions .secondary{background:var(--panel2);color:var(--accent);border:1px solid var(--border)}
+  .auth-actions .secondary:hover{border-color:var(--accent)}
 </style>
 </head>
 <body>
+<!-- Email login / signup gate -->
+<div id="authGate" class="auth-gate" style="display:none">
+  <div class="auth-card">
+    <div class="auth-brand">Marketing Agent Team</div>
+    <h2 id="authH">Welcome</h2>
+    <input id="authEmail" type="email" placeholder="you@company.com" autocomplete="email" />
+    <input id="authPass" type="password" placeholder="Password (min 8 characters)" autocomplete="current-password" />
+    <input id="authNewPass" type="password" placeholder="New password (min 8 characters)" autocomplete="new-password" style="display:none" />
+    <input id="authNewPass2" type="password" placeholder="Confirm new password" autocomplete="new-password" style="display:none" />
+    <div id="authErr" class="auth-err"></div>
+    <div id="authMsg" class="auth-msg"></div>
+    <div class="auth-actions" id="actMain">
+      <button id="authLogin">Log in</button>
+      <button id="authSignup" class="secondary">Sign up</button>
+    </div>
+    <button id="authForgotSend" style="display:none">Send reset link</button>
+    <button id="authResetSubmit" style="display:none">Set new password</button>
+    <div class="auth-toggle"><a id="authForgot">Forgot password?</a></div>
+  </div>
+</div>
+
 <header>
   <span class="dot" id="health"></span>
-  <h1>Product Researcher</h1>
+  <h1>Marketing Agent Team</h1>
   <span class="sub">multi-agent market scan &amp; prediction · Claude Agent SDK</span>
+  <span class="userbox" id="userBox"></span>
 </header>
+
+<div id="verifyBanner" class="banner" style="display:none"></div>
 
 <div class="wrap">
   <!-- LEFT: controls + live timeline -->
   <div class="left">
     <div class="controls">
-      <div>
-        <label for="cat">Product category / market</label>
-        <input id="cat" placeholder="e.g. smart home gadgets" value="smart home gadgets" />
-      </div>
-      <div class="row" style="margin-top:10px">
-        <div style="flex:1">
-          <label for="top">Top N</label>
-          <input id="top" type="number" min="1" max="30" value="8" />
+      <div class="cfgbox">
+        <div class="cfgbox-title">Configuration</div>
+        <div>
+          <label for="cat">Product category / market</label>
+          <input id="cat" placeholder="e.g. smart home gadgets" value="smart home gadgets" />
         </div>
-        <div style="flex:2">
-          <label for="model">Lead model</label>
-          <select id="model">
-            <option value="sonnet">sonnet</option>
-            <option value="opus">opus</option>
-            <option value="haiku">haiku</option>
-          </select>
+        <div class="row" style="margin-top:10px">
+          <div style="flex:1">
+            <label for="top">Top N</label>
+            <input id="top" type="number" min="1" max="30" value="8" />
+          </div>
+          <div style="flex:2">
+            <label for="model">Lead model</label>
+            <select id="model">
+              <option value="sonnet">sonnet</option>
+              <option value="opus">opus</option>
+              <option value="haiku">haiku</option>
+            </select>
+          </div>
         </div>
+        <label style="margin-top:4px">Run mode</label>
+        <div class="toggle" id="modeToggle">
+          <button type="button" class="seg active" id="seg-live">⚡ Live</button>
+          <button type="button" class="seg" id="seg-mock">🧪 Mock</button>
+        </div>
+        <div class="mode-hint" id="modeHint">Live — uses your API key &amp; credits for real research.</div>
+        <label style="margin-top:4px">Pipeline engine</label>
+        <div class="toggle" id="engineToggle">
+          <button type="button" class="seg active" id="eng-standard">⚙ Standard</button>
+          <button type="button" class="seg" id="eng-langgraph">◇ LangGraph</button>
+        </div>
+        <div class="mode-hint" id="engineHint">Pipeline engine. LangGraph needs <code>pip install langgraph</code>.</div>
       </div>
-      <label style="margin-top:4px">Run mode</label>
-      <div class="toggle" id="modeToggle">
-        <button type="button" class="seg active" id="seg-live">⚡ Live</button>
-        <button type="button" class="seg" id="seg-mock">🧪 Mock</button>
-      </div>
-      <div class="mode-hint" id="modeHint">Live — uses your API key &amp; credits for real research.</div>
-      <button id="run">Run research</button>
-      <button id="source" class="secondary" disabled title="Run research for this category first — no saved report yet">🏭 Source suppliers</button>
+      <button id="pipe" class="agent-btn primary"></button>
+      <div class="mode-hint">Amanda runs the full pipeline: research → suppliers.</div>
+      <div class="or-row"><span>or run a single stage</span></div>
+      <button id="run" class="agent-btn"></button>
+      <button id="source" class="agent-btn" disabled title="Run research for this category first — no saved report yet"></button>
       <div class="mode-hint" id="sourceHint">Stage 2 unlocks once a research report exists for this category.</div>
     </div>
 
     <div class="team" id="team"></div>
+
+    <div class="graphwrap" id="graphPanel" style="display:none">
+      <div class="ttl">◇ LangGraph · StateGraph <span id="graphStatus" style="color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0"></span></div>
+      <svg viewBox="0 0 360 462" width="100%" style="max-width:340px;display:block;margin:0 auto">
+        <defs>
+          <marker id="ga" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#8b949e"/>
+          </marker>
+          <marker id="gag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#3fb950"/>
+          </marker>
+          <marker id="gar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#f85149"/>
+          </marker>
+        </defs>
+        <!-- edges -->
+        <line x1="180" y1="30" x2="180" y2="44" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <line x1="180" y1="86" x2="180" y2="102" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <!-- fan-out to the two parallel analysts -->
+        <line x1="168" y1="146" x2="104" y2="173" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <line x1="192" y1="146" x2="256" y2="173" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <text x="180" y="166" fill="#d29922" font-size="9.5" text-anchor="middle" font-weight="700">∥ parallel</text>
+        <!-- fan-in to predictor -->
+        <line x1="104" y1="222" x2="156" y2="245" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <line x1="256" y1="222" x2="204" y2="245" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <!-- predictor -> sourcing (conditional: produced products) -->
+        <line x1="180" y1="288" x2="180" y2="318" stroke="#3fb950" stroke-width="2.5" marker-end="url(#gag)"/>
+        <text x="188" y="306" fill="#3fb950" font-size="10">products?</text>
+        <!-- predictor -> END (conditional: no products) -->
+        <path d="M255 268 C 342 296, 342 404, 212 414" fill="none" stroke="#f85149" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#gar)"/>
+        <text x="338" y="346" fill="#f85149" font-size="10" text-anchor="middle">no</text>
+        <line x1="180" y1="364" x2="180" y2="402" stroke="#8b949e" stroke-width="2" marker-end="url(#ga)"/>
+        <!-- START -->
+        <rect x="150" y="8" width="60" height="22" rx="11" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+        <text x="180" y="23" fill="#8b949e" font-size="11" text-anchor="middle">START</text>
+        <!-- trend-scout -->
+        <g id="gn-trend-scout" class="gnode">
+          <rect x="105" y="44" width="150" height="42" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="180" y="64" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">trend-scout</text>
+          <text x="180" y="79" fill="#8b949e" font-size="10" text-anchor="middle">find candidates</text>
+        </g>
+        <!-- market-analyst -->
+        <g id="gn-market-analyst" class="gnode">
+          <rect x="105" y="102" width="150" height="42" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="180" y="122" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">market-analyst</text>
+          <text x="180" y="137" fill="#8b949e" font-size="10" text-anchor="middle">scores + pricing</text>
+        </g>
+        <!-- audience-researcher (parallel A) -->
+        <g id="gn-audience-researcher" class="gnode">
+          <rect x="12" y="173" width="156" height="48" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="90" y="193" fill="#e6edf3" font-size="12.5" font-weight="600" text-anchor="middle">audience-</text>
+          <text x="90" y="208" fill="#e6edf3" font-size="12.5" font-weight="600" text-anchor="middle">researcher</text>
+        </g>
+        <!-- competitor-analyst (parallel B) -->
+        <g id="gn-competitor-analyst" class="gnode">
+          <rect x="192" y="173" width="156" height="48" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="270" y="193" fill="#e6edf3" font-size="12.5" font-weight="600" text-anchor="middle">competitor-</text>
+          <text x="270" y="208" fill="#e6edf3" font-size="12.5" font-weight="600" text-anchor="middle">analyst</text>
+        </g>
+        <!-- predictor -->
+        <g id="gn-predictor" class="gnode">
+          <rect x="105" y="246" width="150" height="42" rx="9" fill="#10243f" stroke="#2f6fd6" stroke-width="2"/>
+          <text x="180" y="266" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">predictor</text>
+          <text x="180" y="281" fill="#8b949e" font-size="10" text-anchor="middle">score · rank · save</text>
+        </g>
+        <!-- sourcing -->
+        <g id="gn-sourcing" class="gnode">
+          <rect x="105" y="320" width="150" height="44" rx="9" fill="#231a3a" stroke="#9a6bf0" stroke-width="2"/>
+          <text x="180" y="341" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">sourcing</text>
+          <text x="180" y="356" fill="#8b949e" font-size="10" text-anchor="middle">Javier · Stage 2</text>
+        </g>
+        <!-- END -->
+        <rect x="150" y="402" width="60" height="22" rx="11" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+        <text x="180" y="417" fill="#8b949e" font-size="11" text-anchor="middle">END</text>
+      </svg>
+    </div>
+
     <div class="timeline" id="timeline">
       <div class="empty">Enter a category and hit <b>Run research</b> to watch the team work.</div>
     </div>
@@ -141,9 +319,105 @@ const AGENTS = [
   ["lead","🧭 lead","Stage 1 · Research"],
   ["trend-scout","🔭 trend-scout","Stage 1 · Research"],
   ["market-analyst","📊 market-analyst","Stage 1 · Research"],
+  ["audience-researcher","👥 audience-researcher","Stage 1 · Research"],
+  ["competitor-analyst","🥊 competitor-analyst","Stage 1 · Research"],
   ["predictor","🎯 predictor","Stage 1 · Research"],
   ["sourcing-scout","🏭 sourcing-scout","Stage 2 · Sourcing"],
 ];
+// Each of the two agent teams is a named person with a human avatar (a
+// DiceBear cartoon seeded by name; falls back to a solid colour circle offline).
+const PEOPLE = {
+  "Stage 1 · Research": {key:"s1", name:"Maria", role:"Product Researcher", color:"#1f6feb", kind:"woman"},
+  "Stage 2 · Sourcing": {key:"s2", name:"Javier", role:"Supplier Sourcer",  color:"#8957e5", kind:"man"},
+};
+// The orchestrator (Amanda) — a third, distinct cartoon-woman avatar.
+const ORCHESTRATOR = {key:"orc", name:"Amanda", role:"Orchestrator", color:"#0f9d72", kind:"woman2"};
+// Two named specialists with their own woman avatars — the parallel analysts.
+const HEIDI  = {key:"aud",  name:"Heidi",  role:"Audience Researcher", color:"#d9488a", kind:"woman3"};
+const YANGSI = {key:"comp", name:"Yangsi", role:"Competitor Analyst",  color:"#e07b39", kind:"woman4"};
+const JOSE   = {key:"pred", name:"Jose",   role:"Predictor",           color:"#1f9d9d", kind:"man2"};
+// Agents that are shown as a named person (avatar + name) rather than a chip.
+const AGENT_PEOPLE = {"audience-researcher":HEIDI, "competitor-analyst":YANGSI, "predictor":JOSE};
+// Self-contained inline-SVG cartoon avatars (no network needed).
+function avatarSVG(p){
+  const bg=p.color, skin="#f1c8a6", hair="#3a2a1a", mouth="#bd5a48";
+  if(p.kind==="man"){
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+      `<rect width="100" height="100" fill="${bg}"/>`+
+      `<path d="M28 92c2-13 10-20 22-20s20 7 22 20z" fill="#dd9a72"/>`+
+      `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+      `<path d="M30 50c1 12 8 24 20 24s19-12 20-24c-3 9-11 13-20 13s-17-4-20-13z" fill="${hair}"/>`+
+      `<path d="M29 47c0-16 9-26 21-26s21 10 21 26c-5-8-9-12-21-12s-16 4-21 12z" fill="#2a1e15"/>`+
+      `<circle cx="43" cy="48" r="2.6" fill="${hair}"/><circle cx="57" cy="48" r="2.6" fill="${hair}"/>`+
+      `<path d="M44 56q6 3 12 0" fill="none" stroke="${hair}" stroke-width="3" stroke-linecap="round"/>`+
+      `</svg>`;
+  }
+  if(p.kind==="man2"){                // Jose — short dark hair + trimmed beard
+    const beard="#2a1e15";
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+      `<rect width="100" height="100" fill="${bg}"/>`+
+      `<path d="M28 92c2-13 10-20 22-20s20 7 22 20z" fill="#dd9a72"/>`+
+      `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+      `<path d="M31 55c1 14 9 23 19 23s18-9 19-23c-4 9-10 14-19 14s-15-5-19-14z" fill="${beard}"/>`+
+      `<path d="M29 47c0-16 9-26 21-26s21 10 21 26c-5-8-9-12-21-12s-16 4-21 12z" fill="${beard}"/>`+
+      `<circle cx="43" cy="49" r="2.6" fill="${hair}"/><circle cx="57" cy="49" r="2.6" fill="${hair}"/>`+
+      `<path d="M44 60q6 3 12 0" fill="none" stroke="${mouth}" stroke-width="2.6" stroke-linecap="round"/>`+
+      `</svg>`;
+  }
+  if(p.kind==="woman2"){              // Amanda — blonde bob, distinct from Maria
+    const blonde="#e0b352";
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+      `<rect width="100" height="100" fill="${bg}"/>`+
+      `<path d="M26 50c0-18 11-29 24-29s24 11 24 29v12q0 6-6 6h-2V52H34v16h-2q-6 0-6-6z" fill="${blonde}"/>`+
+      `<path d="M30 92c2-12 9-18 20-18s18 6 20 18z" fill="#e7a781"/>`+
+      `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+      `<path d="M30 48c0-17 9-27 20-27s20 10 20 27c-5-9-12-12-20-12s-15 3-20 12z" fill="${blonde}"/>`+
+      `<ellipse cx="43" cy="50" rx="2.4" ry="3" fill="${hair}"/><ellipse cx="57" cy="50" rx="2.4" ry="3" fill="${hair}"/>`+
+      `<path d="M43 59q7 6 14 0" fill="none" stroke="${mouth}" stroke-width="2.4" stroke-linecap="round"/>`+
+      `</svg>`;
+  }
+  if(p.kind==="woman3"){              // Heidi — auburn hair with a side ponytail
+    const auburn="#a8432a";
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+      `<rect width="100" height="100" fill="${bg}"/>`+
+      `<ellipse cx="74" cy="46" rx="9" ry="17" fill="${auburn}"/>`+   // ponytail
+      `<path d="M26 52c0-19 11-31 24-31s24 12 24 31v22q0 7-7 7h-2V54H35v27h-2q-7 0-7-7z" fill="${auburn}"/>`+
+      `<path d="M30 92c2-12 9-18 20-18s18 6 20 18z" fill="#e7a781"/>`+
+      `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+      `<path d="M30 48c0-17 9-27 20-27s20 10 20 27c-5-9-12-12-20-12s-15 3-20 12z" fill="${auburn}"/>`+
+      `<ellipse cx="43" cy="50" rx="2.4" ry="3" fill="${hair}"/><ellipse cx="57" cy="50" rx="2.4" ry="3" fill="${hair}"/>`+
+      `<path d="M43 59q7 6 14 0" fill="none" stroke="${mouth}" stroke-width="2.4" stroke-linecap="round"/>`+
+      `</svg>`;
+  }
+  if(p.kind==="woman4"){              // Yangsi — straight black hair with blunt bangs
+    const black="#241f29";
+    return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+      `<rect width="100" height="100" fill="${bg}"/>`+
+      `<path d="M24 54c0-21 12-33 26-33s26 12 26 33v30h-9V56H33v28h-9z" fill="${black}"/>`+   // long straight hair
+      `<path d="M30 92c2-12 9-18 20-18s18 6 20 18z" fill="#e7a781"/>`+
+      `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+      `<path d="M28 46c2-16 11-25 22-25s20 9 22 25c-6-4-9-7-12-13-3 7-19 8-32 13z" fill="${black}"/>`+ // blunt bangs
+      `<ellipse cx="43" cy="51" rx="2.4" ry="3" fill="${hair}"/><ellipse cx="57" cy="51" rx="2.4" ry="3" fill="${hair}"/>`+
+      `<path d="M44 60q6 5 12 0" fill="none" stroke="${mouth}" stroke-width="2.4" stroke-linecap="round"/>`+
+      `</svg>`;
+  }
+  return `<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">`+
+    `<rect width="100" height="100" fill="${bg}"/>`+
+    `<path d="M24 52c0-19 11-31 26-31s26 12 26 31v26q0 8-8 8h-3V54H35v32h-3q-8 0-8-8z" fill="#6b4226"/>`+
+    `<path d="M30 92c2-12 9-18 20-18s18 6 20 18z" fill="#e7a781"/>`+
+    `<ellipse cx="50" cy="50" rx="20" ry="22" fill="${skin}"/>`+
+    `<path d="M30 48c0-17 9-27 20-27s20 10 20 27c-5-9-12-12-20-12s-15 3-20 12z" fill="#6b4226"/>`+
+    `<ellipse cx="43" cy="50" rx="2.4" ry="3" fill="${hair}"/><ellipse cx="57" cy="50" rx="2.4" ry="3" fill="${hair}"/>`+
+    `<path d="M43 59q7 6 14 0" fill="none" stroke="${mouth}" stroke-width="2.4" stroke-linecap="round"/>`+
+    `</svg>`;
+}
+const agentStage = Object.fromEntries(AGENTS.map(([id,,stage])=>[id,stage]));
+// Matching avatar + label markup for the two agent buttons.
+const BTN_HTML = {
+  pipe: `<span class="btn-av" title="Amanda — Orchestrator">${avatarSVG(ORCHESTRATOR)}</span><span>Run full pipeline</span>`,
+  run: `<span class="btn-av" title="Maria — Product Researcher">${avatarSVG(PEOPLE['Stage 1 · Research'])}</span><span>Run research</span>`,
+  source: `<span class="btn-av" title="Javier — Supplier Sourcer">${avatarSVG(PEOPLE['Stage 2 · Sourcing'])}</span><span>Source suppliers</span>`,
+};
 const $ = s => document.querySelector(s);
 const teamEl = $("#team"), tl = $("#timeline"), reportEl = $("#report");
 let es = null, reportBuf = "", running = false, mockMode = false;
@@ -159,27 +433,146 @@ function setMode(mock){
 $("#seg-live").addEventListener("click", ()=>{ if(!running) setMode(false); });
 $("#seg-mock").addEventListener("click", ()=>{ if(!running) setMode(true); });
 
+let engine="standard";
+function setEngine(e){
+  engine=e;
+  $("#eng-standard").classList.toggle("active", e==="standard");
+  $("#eng-langgraph").classList.toggle("active", e==="langgraph");
+  $("#engineHint").innerHTML = e==="langgraph"
+    ? "LangGraph engine — a StateGraph with a conditional edge. Needs <code>pip install langgraph</code>."
+    : "Standard engine — the lightweight deterministic orchestrator.";
+  $("#graphPanel").style.display = e==="langgraph" ? "" : "none";
+}
+$("#eng-standard").addEventListener("click", ()=>{ if(!running) setEngine("standard"); });
+$("#eng-langgraph").addEventListener("click", ()=>{ if(!running) setEngine("langgraph"); });
+
+// LangGraph node highlighting (driven by the same stage events).
+function setGraphNode(name, state){
+  const el=$("#gn-"+name); if(!el) return;
+  el.classList.remove("active","done");
+  if(state) el.classList.add(state);
+}
+// Research sub-pipeline node groups, in execution order. The third group runs
+// in PARALLEL (audience-researcher ∥ competitor-analyst).
+const GRAPH_GROUPS=[["trend-scout"],["market-analyst"],["audience-researcher","competitor-analyst"],["predictor"]];
+const GRAPH_NODES=[...GRAPH_GROUPS.flat(),"sourcing"];
+function clearGraph(){ GRAPH_NODES.forEach(n=>setGraphNode(n,null)); $("#graphStatus").textContent=""; }
+function graphDone(){
+  GRAPH_NODES.forEach(n=>{ const el=$("#gn-"+n); if(el&&el.classList.contains("active")){ el.classList.remove("active"); el.classList.add("done"); } });
+}
+// Mark a research node active and finalise all earlier groups as done.
+function advanceGraph(name){
+  const gi=GRAPH_GROUPS.findIndex(g=>g.includes(name));
+  if(gi<0) return;
+  for(let i=0;i<gi;i++) GRAPH_GROUPS[i].forEach(n=>setGraphNode(n,"done"));
+  setGraphNode(name,"active");
+}
+
 function renderTeam(){
   teamEl.innerHTML = "";
+  const o=ORCHESTRATOR;
+  const ohead=document.createElement("div");
+  ohead.className="stage-head";
+  ohead.innerHTML=
+    `<span class="avatar" id="av-${o.key}" title="${esc(o.name)} — ${esc(o.role)}" `+
+    `style="background:${o.color}">${avatarSVG(o)}</span>`+
+    `<span class="stage-label"><b class="person">${esc(o.name)}</b> · ${esc(o.role)}</span>`+
+    `<span class="status" id="st-${o.key}"></span>`;
+  teamEl.appendChild(ohead);
   let lastStage = null;
   AGENTS.forEach(([id,label,stage])=>{
     if(stage && stage!==lastStage){
-      const s=document.createElement("div");
-      s.className="stage-label"; s.textContent=stage;
-      teamEl.appendChild(s); lastStage=stage;
+      const m=PEOPLE[stage]||{};
+      const head=document.createElement("div");
+      head.className="stage-head";
+      head.innerHTML=
+        `<span class="avatar" id="av-${m.key||''}" title="${esc(m.name||'')} — ${esc(m.role||stage)}" `+
+        `style="background:${m.color||'var(--chip)'}">${avatarSVG(m)}</span>`+
+        `<span class="stage-label"><b class="person">${esc(m.name||'')}</b> · ${esc(stage)}</span>`+
+        `<span class="status" id="st-${m.key||''}"></span>`;
+      teamEl.appendChild(head); lastStage=stage;
+    }
+    const person=AGENT_PEOPLE[id];
+    if(person){   // named specialist — same avatar+name style as the stage leads
+      const row=document.createElement("div");
+      row.className="stage-head sub-person"; row.id="ag-"+id;
+      row.innerHTML=
+        `<span class="avatar" id="av-${person.key}" title="${esc(person.name)} — ${esc(person.role)}" `+
+        `style="background:${person.color}">${avatarSVG(person)}</span>`+
+        `<span class="stage-label"><b class="person">${esc(person.name)}</b> · ${esc(person.role)}</span>`+
+        `<span class="status" id="st-${person.key}"></span>`;
+      teamEl.appendChild(row);
+      return;
     }
     const d=document.createElement("div");
     d.className="agent-chip"; d.id="ag-"+id;
-    d.innerHTML=`<span class="pip"></span>${label}`;
+    d.innerHTML=`<span class="pip"></span>${label}<span class="status ns" id="cs-${id}">not started</span>`;
     teamEl.appendChild(d);
   });
 }
 function setAgent(id,state){
   const el=$("#ag-"+id); if(!el)return;
-  el.classList.remove("active","done");
+  el.classList.remove("active","done","failed");
   if(state) el.classList.add(state);
+  // each chip shows its own status, defaulting to "not started"
+  const cs=$("#cs-"+id);
+  if(cs){
+    cs.textContent = state==="active" ? "working" : state==="done" ? "done" : state==="failed" ? "failed" : "not started";
+    cs.className = "status " + (state==="active" ? "working" : state==="done" ? "finished" : state==="failed" ? "failed" : "ns");
+  }
+  const person=AGENT_PEOPLE[id];
+  if(person){   // toggle the specialist's own avatar + status pill
+    const av=$("#av-"+person.key); if(av) av.classList.toggle("active", state==="active");
+    setStatus(person.key, state==="active" ? "working" : state==="done" ? "finished" : state==="failed" ? "failed" : "idle");
+  }
+  const m=PEOPLE[agentStage[id]];
+  if(m){ const av=$("#av-"+m.key); if(av) av.classList.toggle("active", state==="active"); }
 }
 function clearAgents(){AGENTS.forEach(([id])=>setAgent(id,null));}
+
+// --- Failure-reason popup: click any "failed" status pill to see why. ---
+let failPop=null;
+function ensureFailPop(){
+  if(failPop) return failPop;
+  failPop=document.createElement("div");
+  failPop.className="failpop"; failPop.style.display="none";
+  failPop.addEventListener("click", e=>e.stopPropagation());
+  document.body.appendChild(failPop);
+  return failPop;
+}
+function showFailPopup(anchor){
+  const p=ensureFailPop();
+  const msgs = failMessages.length ? failMessages : ["No failure detail was reported."];
+  p.innerHTML = `<div class="failpop-h">⚠ Why this failed</div>`+
+    msgs.map(m=>`<div class="failpop-m">${esc(m)}</div>`).join("")+
+    `<div class="failpop-x">Click anywhere to dismiss</div>`;
+  p.style.display="block";
+  const pw=Math.min(380, window.innerWidth-20);
+  p.style.width=pw+"px";
+  // position:fixed → use viewport coords directly (works in any scroll container)
+  const r=anchor.getBoundingClientRect();
+  let left=Math.min(Math.max(r.left,10), window.innerWidth-pw-10);
+  let top=r.bottom+6;
+  if(top+p.offsetHeight > window.innerHeight-10) top=Math.max(10, r.top-p.offsetHeight-6); // flip above if needed
+  p.style.left=left+"px";
+  p.style.top=top+"px";
+}
+function hideFailPopup(){ if(failPop) failPop.style.display="none"; }
+
+// Per-agent status pills: idle | waiting | working | finished | failed.
+const STAGE_KEY={research:"s1", sourcing:"s2"};
+function setStatus(key,state){
+  const el=$("#st-"+key); if(!el) return;
+  if(state==="idle"){ el.textContent="not started"; el.className="status ns"; return; }
+  el.textContent=state; el.className="status "+state;
+}
+function clearStatuses(){ ["orc","s1","s2","aud","comp","pred"].forEach(k=>setStatus(k,"idle")); }
+function finishWorking(){  // any still-"working" pill becomes finished
+  ["orc","s1","s2","aud","comp","pred"].forEach(k=>{
+    const el=$("#st-"+k);
+    if(el && el.classList.contains("working")) setStatus(k,"finished");
+  });
+}
 
 function addEv(cls, ic, html){
   if(tl.querySelector(".empty")) tl.innerHTML="";
@@ -206,16 +599,25 @@ function launch(kind){
   if(running) return;
   const cat=$("#cat").value.trim(); if(cat.length<2){$("#cat").focus();return;}
   const top=$("#top").value||10, model=$("#model").value, mock=mockMode;
-  running=true; reportBuf=""; clearAgents(); activeSub=null;
-  $("#run").disabled=true; $("#source").disabled=true;
-  const btn = kind==="sourcing" ? $("#source") : $("#run");
+  running=true; reportBuf=""; clearAgents(); activeSub=null; clearStatuses(); clearGraph();
+  runKind=kind; researchPhase=(kind!=="sourcing"); hadError=false; succeeded=false; failMessages=[]; hideFailPopup();
+  if(kind==="pipeline"){ setStatus("orc","working"); setStatus("s1","waiting"); setStatus("s2","waiting"); }
+  else if(kind==="sourcing"){ setStatus("s2","working"); }
+  else { setStatus("s1","working"); }
+  $("#run").disabled=true; $("#source").disabled=true; $("#pipe").disabled=true;
+  const orc=$("#av-orc"); if(orc) orc.classList.toggle("active", kind==="pipeline");
+  const btn = kind==="pipeline" ? $("#pipe") : kind==="sourcing" ? $("#source") : $("#run");
   btn.innerHTML='<span class="spin"></span> Running…';
   $("#status").textContent="running"; $("#links").innerHTML="";
   ["s-turns","s-time","s-cost"].forEach(i=>$("#"+i).style.display="none");
   tl.innerHTML=""; reportEl.innerHTML='<div class="empty">Working… the report will stream in.</div>';
 
   let url;
-  if(kind==="sourcing"){
+  if(kind==="pipeline"){
+    const engLabel = engine==="langgraph" ? "LangGraph" : "Standard";
+    addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>${engLabel}</b> engine${mock?" · <b>MOCK</b>":""}`);
+    url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&engine=${engine}&mock=${mock}`;
+  } else if(kind==="sourcing"){
     addEv("","🏭",`Sourcing suppliers for <b>${esc(cat)}</b> · ${esc(model)}${mock?" · <b>MOCK</b>":""}`);
     url=`/api/sourcing?category=${encodeURIComponent(cat)}&model=${encodeURIComponent(model)}&mock=${mock}`;
   } else {
@@ -228,12 +630,26 @@ function launch(kind){
 }
 
 let activeSub=null;
+// Run bookkeeping: which run kind, whether we're still in the research phase
+// (the "lead" chip belongs to research only), and whether the run succeeded.
+let runKind="research", researchPhase=false, hadError=false, succeeded=false;
+let failMessages=[];  // failure reason(s) for the current run, shown on click
 function handle(ev){
   switch(ev.type){
-    case "start": setAgent("lead","active"); break;
+    case "stage":
+      activeSub=null;
+      if(ev.stage==="sourcing"){ researchPhase=false; setStatus("s1","finished"); GRAPH_GROUPS.flat().forEach(n=>setGraphNode(n,"done")); }
+      if(STAGE_KEY[ev.stage]) setStatus(STAGE_KEY[ev.stage],"working");
+      if(ev.stage==="sourcing") setGraphNode("sourcing","active");
+      $("#graphStatus").textContent = "· running "+esc(ev.stage)+" stage";
+      addEv("stage","—",`<b>${esc(ev.label||ev.stage)}</b>`);
+      $("#status").textContent="running";
+      break;
+    case "start": if(researchPhase) setAgent("lead","active"); break;
     case "subagent":
       if(activeSub) setAgent(activeSub,"done");
-      activeSub=ev.name; setAgent("lead","active"); setAgent(ev.name,"active");
+      activeSub=ev.name; if(researchPhase) setAgent("lead","active"); setAgent(ev.name,"active");
+      advanceGraph(ev.name);
       addEv("sub","➤",`Delegated to <b>${esc(ev.name)}</b>`+(ev.task?`<div class="meta">${esc(ev.task)}</div>`:""));
       break;
     case "tool":
@@ -245,15 +661,37 @@ function handle(ev){
       else { addEv("","💬",`<span class="txt">${esc(ev.text.slice(0,300))}</span>`); }
       break;
     case "result":
+      if(ev.is_error){ hadError=true; failMessages.push(ev.message || ev.report || "The run finished with errors."); }
+      else succeeded=true;
       reportBuf = ev.report || reportBuf; renderReport(true);
       $("#status").textContent= ev.is_error ? "finished with errors" : "complete";
       showStat("s-turns", ev.num_turns); showStat("s-time", fmtMs(ev.duration_ms));
       showStat("s-cost", ev.cost_usd!=null ? "$"+Number(ev.cost_usd).toFixed(4) : "—");
       addLinks(); addEv("","✅","Done.");
-      setAgent("lead","done"); if(activeSub) setAgent(activeSub,"done");
+      if(researchPhase) setAgent("lead", ev.is_error ? "failed" : "done");
+      if(activeSub) setAgent(activeSub, ev.is_error ? "failed" : "done");
       break;
-    case "error":
+    case "error": {
+      activeSub=null; hadError=true; failMessages.push(ev.message || "Unknown error.");
+      // Per agent: if it was running → FAILED; if it finished → keep;
+      // if it never started → stays "not started". (Don't blanket-reset.)
+      AGENTS.forEach(([id])=>{
+        const el=$("#ag-"+id); if(!el) return;
+        if(el.classList.contains("active")) setAgent(id,"failed");
+        // keep an already-failed (or done) agent as-is; only never-run ones reset
+        else if(!el.classList.contains("done") && !el.classList.contains("failed")) setAgent(id,null);
+      });
+      // Orchestrator + stage pills follow the same rule (failed is sticky).
+      ["orc","s1","s2"].forEach(k=>{
+        const el=$("#st-"+k); if(!el) return;
+        if(el.classList.contains("working")) setStatus(k,"failed");
+        else if(!el.classList.contains("finished") && !el.classList.contains("failed")) setStatus(k,"idle");
+      });
+      // A graph node mid-run becomes failed; queued ones clear to not-started.
+      GRAPH_NODES.forEach(n=>{ const el=$("#gn-"+n); if(el && el.classList.contains("active")) setGraphNode(n,null); });
+      const oav=$("#av-orc"); if(oav) oav.classList.remove("active");
       addEv("err","❌",esc(ev.message)); $("#status").textContent="error"; break;
+    }
     case "done": finish(); break;
   }
 }
@@ -272,9 +710,23 @@ function addLinks(){
 }
 function finish(){
   running=false; if(es){es.close();es=null;}
-  $("#run").disabled=false; $("#run").textContent="Run research";
-  $("#source").innerHTML="🏭 Source suppliers";
-  // Re-check: a research run may have just produced the report.
+  // Resolve anything still running: success → finished/done, otherwise → failed.
+  // Agents that never started (waiting) fall back to "not started".
+  const good = succeeded && !hadError;
+  if(!good && !failMessages.length) failMessages.push("The run ended without finishing successfully.");
+  ["orc","s1","s2","aud","comp","pred"].forEach(k=>{
+    const el=$("#st-"+k); if(!el) return;
+    if(el.classList.contains("working")) setStatus(k, good?"finished":"failed");
+    else if(el.classList.contains("waiting")) setStatus(k,"idle");
+  });
+  AGENTS.forEach(([id])=>{ const el=$("#ag-"+id); if(el && el.classList.contains("active")) setAgent(id, good?"done":"failed"); });
+  GRAPH_NODES.forEach(n=>{ const el=$("#gn-"+n); if(el && el.classList.contains("active")) setGraphNode(n, good?"done":null); });
+  $("#graphStatus").textContent="";
+  $("#run").disabled=false; $("#run").innerHTML=BTN_HTML.run;
+  $("#pipe").disabled=false; $("#pipe").innerHTML=BTN_HTML.pipe;
+  const orc=$("#av-orc"); if(orc) orc.classList.remove("active");
+  $("#source").innerHTML=BTN_HTML.source;
+  // Re-check: a research/pipeline run may have just produced the report.
   refreshSourceAvailability();
 }
 
@@ -303,12 +755,144 @@ async function refreshSourceAvailability(){
   applySourceState();
 }
 
-renderTeam(); checkHealth(); refreshSourceAvailability();
+// --- one-time UI wiring (no API) ---
+$("#pipe").innerHTML=BTN_HTML.pipe; $("#run").innerHTML=BTN_HTML.run; $("#source").innerHTML=BTN_HTML.source;
+renderTeam();
+clearStatuses();  // every agent shows "not started" until a run begins
+// Click a "failed" status pill (chip or stage, anywhere) to see the reason.
+// Single document-level handler: open on a failed pill, close otherwise.
+document.addEventListener("click", e=>{
+  const pill=e.target.closest && e.target.closest(".status.failed");
+  if(pill){ showFailPopup(pill); }
+  else if(!(e.target.closest && e.target.closest(".failpop"))){ hideFailPopup(); }
+});
+window.addEventListener("resize", hideFailPopup);
+$("#pipe").addEventListener("click", ()=>launch("pipeline"));
 $("#run").addEventListener("click", ()=>launch("research"));
 $("#source").addEventListener("click", ()=>launch("sourcing"));
 let _catTimer=null;
 $("#cat").addEventListener("input", ()=>{ clearTimeout(_catTimer); _catTimer=setTimeout(refreshSourceAvailability,300); });
 $("#cat").addEventListener("keydown", e=>{ if(e.key==="Enter") launch("research"); });
+
+// --- API-backed init, runs once the user is signed in ---
+let appReady=false;
+function initApp(){ if(appReady) return; appReady=true; checkHealth(); refreshSourceAvailability(); }
+
+// --- email login / signup (two explicit buttons) ---
+function showGate(show){ $("#authGate").style.display=show?"flex":"none"; }
+async function doAuth(mode){
+  const email=$("#authEmail").value.trim(), password=$("#authPass").value;
+  if(!email||!password){ $("#authErr").textContent="Enter your email and password."; return; }
+  $("#authErr").textContent=""; $("#authLogin").disabled=true; $("#authSignup").disabled=true;
+  try{
+    const r=await fetch(mode==="login"?"/api/auth/login":"/api/auth/signup",
+      {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){ $("#authErr").textContent=j.error||"Something went wrong."; return; }
+    onAuthed(j);
+  }catch(e){ $("#authErr").textContent="Network error — is the server running?"; }
+  finally{ $("#authLogin").disabled=false; $("#authSignup").disabled=false; }
+}
+function onAuthed(info){
+  showGate(false);
+  $("#userBox").innerHTML=`<span class="email">${esc(info.email)}</span><a id="logout">Log out</a>`;
+  $("#logout").addEventListener("click", async ()=>{ await fetch("/api/auth/logout",{method:"POST"}); location.reload(); });
+  showVerifyBanner(info);
+  initApp();
+}
+function showVerifyBanner(info){
+  const b=$("#verifyBanner");
+  if(!info || info.verified){ b.style.display="none"; return; }
+  const msg = info.email_sent
+    ? `Please verify your email — we sent a link to <b>${esc(info.email)}</b>.`
+    : `Your email isn't verified yet.`;
+  b.className="banner";
+  b.innerHTML=`<span>${msg}</span> <a id="resendV">Resend email</a>`;
+  b.style.display="flex";
+  $("#resendV").addEventListener("click", async ()=>{
+    const a=$("#resendV"); a.textContent="Sending…";
+    try{
+      const r=await fetch("/api/auth/resend",{method:"POST"});
+      const j=await r.json().catch(()=>({}));
+      a.textContent = r.ok ? (j.already_verified?"Already verified ✓":"Sent ✓") : (j.error||"Failed");
+    }catch(e){ a.textContent="Failed"; }
+  });
+}
+$("#authLogin").addEventListener("click", ()=>doAuth("login"));
+$("#authSignup").addEventListener("click", ()=>doAuth("signup"));
+$("#authPass").addEventListener("keydown", e=>{ if(e.key==="Enter") doAuth("login"); });
+
+// --- forgot / reset password views ---
+let authView="login", resetToken=null;
+function setAuthView(view){
+  authView=view;
+  const show=(id,s)=>{ $("#"+id).style.display = s ? "" : "none"; };
+  $("#authErr").textContent=""; $("#authMsg").textContent="";
+  const isLogin=view==="login", isForgot=view==="forgot", isReset=view==="reset";
+  show("authEmail", isLogin||isForgot);
+  show("authPass", isLogin);
+  show("authNewPass", isReset); show("authNewPass2", isReset);
+  show("actMain", isLogin);
+  show("authForgotSend", isForgot);
+  show("authResetSubmit", isReset);
+  $("#authH").textContent = isLogin ? "Welcome" : isForgot ? "Reset your password" : "Set a new password";
+  const fl=$("#authForgot");
+  if(isReset){ fl.style.display="none"; }
+  else { fl.style.display=""; fl.textContent = isLogin ? "Forgot password?" : "Back to log in"; }
+}
+$("#authForgot").addEventListener("click", ()=> setAuthView(authView==="login"?"forgot":"login"));
+async function sendForgot(){
+  const email=$("#authEmail").value.trim();
+  if(!email){ $("#authErr").textContent="Enter your email."; return; }
+  $("#authForgotSend").disabled=true;
+  try{
+    await fetch("/api/auth/forgot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+    $("#authErr").textContent=""; $("#authMsg").textContent="If that email has an account, a reset link is on its way.";
+  }catch(e){ $("#authErr").textContent="Network error."; }
+  finally{ $("#authForgotSend").disabled=false; }
+}
+$("#authForgotSend").addEventListener("click", sendForgot);
+async function submitReset(){
+  const p=$("#authNewPass").value, p2=$("#authNewPass2").value;
+  if(p.length<8){ $("#authErr").textContent="Password must be at least 8 characters."; return; }
+  if(p!==p2){ $("#authErr").textContent="Passwords don't match."; return; }
+  $("#authResetSubmit").disabled=true;
+  try{
+    const r=await fetch("/api/auth/reset",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:resetToken,password:p})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){ $("#authErr").textContent=j.error||"Could not reset password."; return; }
+    history.replaceState(null,"",location.pathname);
+    setAuthView("login"); $("#authMsg").textContent="Password updated — please log in.";
+  }catch(e){ $("#authErr").textContent="Network error."; }
+  finally{ $("#authResetSubmit").disabled=false; }
+}
+$("#authResetSubmit").addEventListener("click", submitReset);
+$("#authNewPass2").addEventListener("keydown", e=>{ if(e.key==="Enter") submitReset(); });
+
+function flashVerified(){
+  const b=$("#verifyBanner");
+  b.className="banner success"; b.innerHTML="<span>✓ Email verified — thanks!</span>";
+  b.style.display="flex";
+  setTimeout(()=>{ b.style.display="none"; }, 5000);
+  history.replaceState(null,"",location.pathname);
+}
+async function boot(){
+  const params=new URLSearchParams(location.search);
+  const justVerified=params.get("verified")==="1";
+  resetToken=params.get("reset");
+  if(resetToken){ setAuthView("reset"); showGate(true); return; }
+  try{
+    const r=await fetch("/api/auth/me");
+    if(r.ok){
+      const j=await r.json();
+      onAuthed(j);
+      if(justVerified) flashVerified();
+      return;
+    }
+  }catch(e){}
+  setAuthView("login"); showGate(true); $("#authEmail").focus();
+}
+boot();
 </script>
 </body>
 </html>
