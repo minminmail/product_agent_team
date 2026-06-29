@@ -54,6 +54,7 @@ class PipelineState(TypedDict, total=False):
     audience_text: str          # live: audience-researcher output
     competitor_text: str        # live: competitor-analyst output
     failed: bool                # an upstream node errored → skip the rest
+    force_env: dict             # route every node through the proxy (Groq button)
     research_ok: bool
 
 
@@ -70,6 +71,7 @@ def _trend_prompt(category: str) -> str:
 
 
 def _analyst_prompt(category: str, candidates_text: str) -> str:
+    candidates_text = _cap(candidates_text)
     return (
         f'For the category "{category}", call the `market-analyst` subagent to '
         f"score every candidate below on the five 0-10 dimensions (demand, growth, "
@@ -80,6 +82,7 @@ def _analyst_prompt(category: str, candidates_text: str) -> str:
 
 
 def _audience_prompt(category: str, candidates_text: str) -> str:
+    candidates_text = _cap(candidates_text)
     return (
         f'For the category "{category}", call the `audience-researcher` subagent to '
         f"build 3-4 target customer segments and buyer personas for these candidate "
@@ -88,6 +91,7 @@ def _audience_prompt(category: str, candidates_text: str) -> str:
 
 
 def _competitor_prompt(category: str, candidates_text: str) -> str:
+    candidates_text = _cap(candidates_text)
     return (
         f'For the category "{category}", call the `competitor-analyst` subagent to '
         f"profile 4-6 rival brands (positioning, messaging, pricing, ad/marketing "
@@ -96,10 +100,19 @@ def _competitor_prompt(category: str, candidates_text: str) -> str:
     )
 
 
+def _cap(text: str, limit: int = 2500) -> str:
+    """Trim threaded context so per-request token counts stay manageable
+    (matters a lot for small free-tier limits like Groq's 12k TPM)."""
+    text = text or ""
+    return text if len(text) <= limit else text[:limit] + "\n…(truncated)"
+
+
 def _predictor_prompt(category: str, top: int, output_dir: str,
                       analysis_text: str, audience_text: str,
                       competitor_text: str) -> str:
     from product_researcher.tools import TOOL_SAVE, TOOL_SCORE
+    analysis_text, audience_text, competitor_text = (
+        _cap(analysis_text), _cap(audience_text), _cap(competitor_text))
     return (
         f"Call the `predictor` subagent to turn the market-analyst's sub-scores "
         f"below into final 0-100 opportunity scores (it must use the {TOOL_SCORE} "
@@ -139,7 +152,8 @@ def _build_graph(emit):
         from product_researcher.events import run_segment
         text: list[str] = []; err = False
         async for ev in run_segment(_trend_prompt(state["category"]),
-                                    state["model"], state["reports_dir"], text):
+                                    state["model"], state["reports_dir"], text,
+                                    force_env=state.get("force_env")):
             if ev.get("type") == "error":
                 err = True
             await emit(ev)
@@ -162,7 +176,8 @@ def _build_graph(emit):
         from product_researcher.events import run_segment
         text: list[str] = []; err = False
         async for ev in run_segment(_analyst_prompt(state["category"], state.get("candidates_text", "")),
-                                    state["model"], state["reports_dir"], text):
+                                    state["model"], state["reports_dir"], text,
+                                    force_env=state.get("force_env")):
             if ev.get("type") == "error":
                 err = True
             await emit(ev)
@@ -185,7 +200,8 @@ def _build_graph(emit):
         from product_researcher.events import run_segment
         text: list[str] = []
         async for ev in run_segment(_audience_prompt(state["category"], state.get("candidates_text", "")),
-                                    state["model"], state["reports_dir"], text):
+                                    state["model"], state["reports_dir"], text,
+                                    force_env=state.get("force_env")):
             await emit(ev)
         return {"audience_text": "\n".join(text)}
 
@@ -206,7 +222,8 @@ def _build_graph(emit):
         from product_researcher.events import run_segment
         text: list[str] = []
         async for ev in run_segment(_competitor_prompt(state["category"], state.get("candidates_text", "")),
-                                    state["model"], state["reports_dir"], text):
+                                    state["model"], state["reports_dir"], text,
+                                    force_env=state.get("force_env")):
             await emit(ev)
         return {"competitor_text": "\n".join(text)}
 
@@ -243,11 +260,19 @@ def _build_graph(emit):
                               state.get("analysis_text", ""), state.get("audience_text", ""),
                               state.get("competitor_text", "")),
             state["model"], state["reports_dir"], text,
+            force_env=state.get("force_env"),
         ):
             await emit(ev)
         report = "".join(text).strip()
         ok = bool(report)
         if ok:
+            # Safeguard: if the model didn't call save_results, derive the
+            # predictions file from the report so Stage 2 can find it.
+            from product_researcher.core import ensure_predictions_saved
+            saved = ensure_predictions_saved(state["category"], state["reports_dir"], report)
+            if saved:
+                await emit({"type": "tool", "name": "mcp__research-tools__save_results",
+                            "agent": "lead", "summary": "save: predictions (from report)"})
             await emit({"type": "result", "duration_ms": None, "cost_usd": None,
                         "num_turns": None, "is_error": False, "report": report})
         else:
@@ -309,8 +334,10 @@ async def run_pipeline_graph(
     reports_dir: str = "./reports",
     model: str = "sonnet",
     mock: bool = False,
+    force_env: dict | None = None,
 ) -> AsyncIterator[dict]:
-    """Run the LangGraph pipeline, yielding the same events as run_pipeline()."""
+    """Run the LangGraph pipeline, yielding the same events as run_pipeline().
+    force_env routes every node through the proxy (Groq button)."""
     reports_dir = os.path.abspath(reports_dir)
     os.makedirs(reports_dir, exist_ok=True)
 
@@ -323,7 +350,7 @@ async def run_pipeline_graph(
     state: PipelineState = {
         "category": category, "top": top, "source_top": source_top,
         "per_product": per_product, "reports_dir": reports_dir,
-        "model": model, "mock": mock,
+        "model": model, "mock": mock, "force_env": force_env,
     }
 
     async def run() -> None:

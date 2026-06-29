@@ -57,6 +57,10 @@ REQUIRE_VERIFICATION = os.getenv("REQUIRE_VERIFICATION", "").strip().lower() in 
 
 app = FastAPI(title="Product Researcher Dashboard")
 
+# Shown when "Run on Groq" is clicked but the proxy/key isn't configured.
+_GROQ_HINT = ("Run on Groq needs GROQ_API_KEY in .env and the proxy running "
+              "(./run_proxy.sh). See LITELLM_GEMINI_SETUP.md.")
+
 
 # --- Auth helpers & endpoints ------------------------------------------------
 
@@ -223,7 +227,31 @@ async def me(request: Request) -> JSONResponse:
 
 @app.get("/api/health")
 async def health() -> JSONResponse:
-    return JSONResponse({"ok": True, "has_key": bool(os.getenv("ANTHROPIC_API_KEY"))})
+    import asyncio as _asyncio
+    from .events import _fallback_env, _proxy_reachable
+
+    base_url = (os.getenv("ANTHROPIC_BASE_URL") or "").strip()
+
+    # Gemini auto-fallback status: configured? and is the LiteLLM proxy up?
+    fb = _fallback_env()
+    gemini_configured = fb is not None
+    proxy_url = fb["ANTHROPIC_BASE_URL"] if fb else None
+    proxy_reachable = False
+    if fb:
+        proxy_reachable = await _asyncio.to_thread(_proxy_reachable, proxy_url, 0.6)
+
+    return JSONResponse({
+        "ok": True,
+        "has_key": bool(os.getenv("ANTHROPIC_API_KEY")),
+        # Where live runs send LLM calls — a custom base URL (e.g. a LiteLLM
+        # proxy → Gemini) or Anthropic's default endpoint.
+        "base_url": base_url or "https://api.anthropic.com",
+        "custom_endpoint": bool(base_url),
+        # Gemini fallback health for the UI indicator.
+        "gemini_configured": gemini_configured,
+        "gemini_proxy_url": proxy_url,
+        "gemini_proxy_reachable": proxy_reachable,
+    })
 
 
 @app.get("/api/has_report")
@@ -246,8 +274,9 @@ async def has_report(request: Request, category: str = Query(..., min_length=2))
 async def research(
     request: Request,
     category: str = Query(..., min_length=2),
-    top: int = Query(10, ge=1, le=30),
-    model: str = Query("sonnet"),
+    top: int = Query(5, ge=1, le=30),
+    model: str = Query("haiku"),
+    provider: str = Query("anthropic", description="'groq' to force the free proxy."),
     mock: bool = Query(False, description="Run fully offline with canned data (no API key/credits)."),
 ) -> StreamingResponse:
     """Server-Sent Events stream of the research pipeline."""
@@ -262,17 +291,21 @@ async def research(
                 async for ev in run_stream_mock(category, top, REPORTS_DIR, model):
                     yield _sse(ev)
             else:
-                if not os.getenv("ANTHROPIC_API_KEY"):
+                from .events import run_stream, _fallback_env
+                force_env = None
+                if provider == "groq":
+                    force_env = _fallback_env()
+                    if not force_env:
+                        yield _sse({"type": "error", "message": _GROQ_HINT})
+                        return
+                elif not os.getenv("ANTHROPIC_API_KEY"):
                     yield _sse({
                         "type": "error",
-                        "message": "ANTHROPIC_API_KEY is not set. Tip: tick 'Mock mode' "
-                                   "to run offline with no key or credits.",
+                        "message": "ANTHROPIC_API_KEY is not set. Tip: use 'Groq' (free) "
+                                   "or 'Mock' mode instead.",
                     })
                     return
-                # Import the SDK-backed pipeline lazily so mock mode never
-                # requires claude_agent_sdk to be installed.
-                from .events import run_stream
-                async for ev in run_stream(category, top, REPORTS_DIR, model):
+                async for ev in run_stream(category, top, REPORTS_DIR, model, force_env=force_env):
                     yield _sse(ev)
         except Exception as exc:  # never leave the stream hanging
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
@@ -289,9 +322,10 @@ async def research(
 async def sourcing(
     request: Request,
     category: str = Query(..., min_length=2),
-    top: int = Query(3, ge=1, le=10),
-    per: int = Query(10, ge=1, le=20),
-    model: str = Query("sonnet"),
+    top: int = Query(2, ge=1, le=10),
+    per: int = Query(5, ge=1, le=20),
+    model: str = Query("haiku"),
+    provider: str = Query("anthropic", description="'groq' to force the free proxy."),
     mock: bool = Query(False, description="Run fully offline with canned suppliers (no API key/credits)."),
 ) -> StreamingResponse:
     """SSE stream of the INDEPENDENT supplier-sourcing agent.
@@ -310,16 +344,21 @@ async def sourcing(
                 async for ev in source_mock(category, REPORTS_DIR, REPORTS_DIR, model, top, per):
                     yield _sse(ev)
             else:
-                if not os.getenv("ANTHROPIC_API_KEY"):
+                from supplier_sourcer.events import run_stream as source_stream, _fallback_env
+                force_env = None
+                if provider == "groq":
+                    force_env = _fallback_env()
+                    if not force_env:
+                        yield _sse({"type": "error", "message": _GROQ_HINT})
+                        return
+                elif not os.getenv("ANTHROPIC_API_KEY"):
                     yield _sse({
                         "type": "error",
-                        "message": "ANTHROPIC_API_KEY is not set. Tip: tick 'Mock mode' "
-                                   "to run offline with no key or credits.",
+                        "message": "ANTHROPIC_API_KEY is not set. Tip: use 'Groq' (free) "
+                                   "or 'Mock' mode instead.",
                     })
                     return
-                # Lazy import so mock mode never requires claude_agent_sdk.
-                from supplier_sourcer.events import run_stream as source_stream
-                async for ev in source_stream(category, REPORTS_DIR, REPORTS_DIR, model, top, per):
+                async for ev in source_stream(category, REPORTS_DIR, REPORTS_DIR, model, top, per, force_env=force_env):
                     yield _sse(ev)
         except Exception as exc:
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
@@ -336,10 +375,11 @@ async def sourcing(
 async def pipeline(
     request: Request,
     category: str = Query(..., min_length=2),
-    top: int = Query(8, ge=1, le=30),
-    source_top: int = Query(3, ge=1, le=10),
-    per: int = Query(10, ge=1, le=20),
-    model: str = Query("sonnet"),
+    top: int = Query(5, ge=1, le=30),
+    source_top: int = Query(2, ge=1, le=10),
+    per: int = Query(5, ge=1, le=20),
+    model: str = Query("haiku"),
+    provider: str = Query("anthropic", description="'groq' to force the free proxy."),
     engine: str = Query("", description="'langgraph' to use the LangGraph engine; else deterministic."),
     mock: bool = Query(False, description="Run the whole pipeline offline (no API key/credits)."),
 ) -> StreamingResponse:
@@ -351,11 +391,18 @@ async def pipeline(
             if gate:
                 yield _sse({"type": "error", "message": gate})
                 return
-            if not mock and not os.getenv("ANTHROPIC_API_KEY"):
+            force_env = None
+            if not mock and provider == "groq":
+                from .events import _fallback_env
+                force_env = _fallback_env()
+                if not force_env:
+                    yield _sse({"type": "error", "message": _GROQ_HINT})
+                    return
+            elif not mock and not os.getenv("ANTHROPIC_API_KEY"):
                 yield _sse({
                     "type": "error",
-                    "message": "ANTHROPIC_API_KEY is not set. Tip: tick 'Mock mode' "
-                               "to run offline with no key or credits.",
+                    "message": "ANTHROPIC_API_KEY is not set. Tip: use 'Groq' (free) "
+                               "or 'Mock' mode instead.",
                 })
                 return
             # Engine selection: explicit ?engine=langgraph, else USE_LANGGRAPH env.
@@ -371,7 +418,7 @@ async def pipeline(
                     return
             else:
                 from orchestrator.pipeline import run_pipeline
-            async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, model, mock):
+            async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, model, mock, force_env=force_env):
                 yield _sse(ev)
         except Exception as exc:
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})

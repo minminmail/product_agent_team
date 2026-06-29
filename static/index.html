@@ -19,8 +19,35 @@
   header .sub{color:var(--muted);font-size:12px}
   .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
   .dot.ok{background:var(--green)} .dot.bad{background:var(--red)}
-  .wrap{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.2fr);gap:0;height:calc(100vh - 61px)}
+  .proxychip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+       padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted);cursor:default}
+  .proxychip .pdot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+  .proxychip.up{color:#3fb950;border-color:#1f6f3f} .proxychip.up .pdot{background:var(--green)}
+  .proxychip.down{color:#ff7b72;border-color:#6e2a26} .proxychip.down .pdot{background:var(--red)}
+  .proxychip.off{color:var(--muted)} .proxychip.off .pdot{background:var(--muted)}
+  .wrap{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.2fr);gap:0;height:calc(100vh - 61px - 38px)}
   @media(max-width:900px){.wrap{grid-template-columns:1fr;height:auto}}
+  /* Activity log — docked bar at the very bottom + slide-up panel. */
+  .logbar{position:fixed;left:0;right:0;bottom:0;height:38px;display:flex;align-items:center;gap:12px;
+       padding:0 16px;background:var(--panel);border-top:1px solid var(--border);z-index:70}
+  .logbtn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:7px;
+       padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  .logbtn:hover{border-color:var(--accent)}
+  .logbtn.ghost{background:transparent;color:var(--muted)}
+  .logmeta{font-size:11px;color:var(--muted)}
+  .logpanel{position:fixed;left:0;right:0;bottom:38px;height:42vh;overflow:auto;display:none;z-index:70;
+       background:#0b0f14;border-top:1px solid var(--border);padding:10px 16px;
+       font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .logpanel.open{display:block}
+  .logrow{white-space:pre-wrap;word-break:break-word;padding:1px 0;color:#c9d1d9}
+  .logrow .lt{color:#6e7681}
+  .logrow.api .lk{color:#58a6ff;font-weight:700}
+  .logrow.mock .lk{color:#d29922;font-weight:700}
+  .logrow.tool .lk{color:#3fb950}
+  .logrow.result .lk{color:#3fb950;font-weight:700}
+  .logrow.error .lk{color:#ff7b72;font-weight:700}
+  .logrow.info .lk{color:#8b949e}
+  .logempty{color:#6e7681}
   .left{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
   .controls{padding:16px 20px;border-bottom:1px solid var(--border);background:var(--panel)}
   .cfgbox{border:1px solid var(--border);border-radius:10px;background:var(--panel2);padding:14px 14px 16px;margin-bottom:14px}
@@ -45,7 +72,7 @@
   .btn-av{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
   .btn-av svg,.avatar svg{display:block;width:100%;height:100%}
   .toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:6px}
-  .toggle .seg{width:50%;background:var(--bg);color:var(--muted);border:0;border-radius:0;
+  .toggle .seg{flex:1 1 0;min-width:0;background:var(--bg);color:var(--muted);border:0;border-radius:0;
        padding:9px 12px;font-weight:600;font-size:13px;cursor:pointer}
   .toggle .seg:hover{color:var(--text)}
   .toggle .seg.active{background:var(--accent);color:#06131f}
@@ -74,10 +101,20 @@
   .status.ns{color:var(--muted);background:transparent;border-color:var(--border)}
   .status.waiting{color:var(--muted)}
   .status.working{color:#0d1117;background:var(--amber);border-color:var(--amber)}
-  .status.finished{color:#06210f;background:var(--green);border-color:var(--green)}
+  .status.finished{color:#06210f;background:var(--green);border-color:var(--green);cursor:pointer}
+  .status.finished::after{content:" ⓘ";font-size:9px;opacity:.75}
+  .status.finished:hover{filter:brightness(1.1)}
   .status.failed{color:#fff;background:var(--red);border-color:var(--red);cursor:pointer}
   .status.failed::after{content:" ⓘ";font-size:9px}
   .status.failed:hover{filter:brightness(1.12)}
+  .outpop{position:fixed;z-index:9999;background:var(--panel2);border:1px solid var(--accent);
+       border-radius:10px;padding:12px 14px;box-shadow:0 10px 34px rgba(0,0,0,.6);font-size:13px;color:var(--text);
+       max-height:62vh;overflow:auto}
+  .outpop-h{font-weight:700;color:var(--accent);margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .outpop-body{line-height:1.5;word-break:break-word}
+  .outpop-body pre{white-space:pre-wrap}
+  .outpop-body table{border-collapse:collapse} .outpop-body th,.outpop-body td{border:1px solid var(--border);padding:3px 7px}
+  .outpop-x{margin-top:10px;font-size:11px;color:var(--muted)}
   .failpop{position:fixed;z-index:9999;background:var(--panel2);border:1px solid var(--red);
        border-radius:10px;padding:12px 14px;box-shadow:0 10px 34px rgba(0,0,0,.55);font-size:13px;color:var(--text)}
   .failpop-h{font-weight:700;color:#ff7b72;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
@@ -168,6 +205,7 @@
   <span class="dot" id="health"></span>
   <h1>Marketing Agent Team</h1>
   <span class="sub">multi-agent market scan &amp; prediction · Claude Agent SDK</span>
+  <span class="proxychip" id="proxyChip" style="display:none"></span>
   <span class="userbox" id="userBox"></span>
 </header>
 
@@ -186,27 +224,28 @@
         <div class="row" style="margin-top:10px">
           <div style="flex:1">
             <label for="top">Top N</label>
-            <input id="top" type="number" min="1" max="30" value="8" />
+            <input id="top" type="number" min="1" max="30" value="5" />
           </div>
           <div style="flex:2">
             <label for="model">Lead model</label>
             <select id="model">
+              <option value="haiku" selected>haiku (cheapest)</option>
               <option value="sonnet">sonnet</option>
               <option value="opus">opus</option>
-              <option value="haiku">haiku</option>
             </select>
           </div>
         </div>
         <label style="margin-top:4px">Run mode</label>
         <div class="toggle" id="modeToggle">
           <button type="button" class="seg active" id="seg-live">⚡ Live</button>
+          <button type="button" class="seg" id="seg-groq">🟢 Groq (free)</button>
           <button type="button" class="seg" id="seg-mock">🧪 Mock</button>
         </div>
         <div class="mode-hint" id="modeHint">Live — uses your API key &amp; credits for real research.</div>
         <label style="margin-top:4px">Pipeline engine</label>
         <div class="toggle" id="engineToggle">
-          <button type="button" class="seg active" id="eng-standard">⚙ Standard</button>
-          <button type="button" class="seg" id="eng-langgraph">◇ LangGraph</button>
+          <button type="button" class="seg" id="eng-standard">⚙ Standard</button>
+          <button type="button" class="seg active" id="eng-langgraph">◇ LangGraph</button>
         </div>
         <div class="mode-hint" id="engineHint">Pipeline engine. LangGraph needs <code>pip install langgraph</code>.</div>
       </div>
@@ -214,7 +253,7 @@
       <div class="mode-hint">Amanda runs the full pipeline: research → suppliers.</div>
       <div class="or-row"><span>or run a single stage</span></div>
       <button id="run" class="agent-btn"></button>
-      <button id="source" class="agent-btn" disabled title="Run research for this category first — no saved report yet"></button>
+      <button id="source" class="agent-btn" title="If no saved report exists, this runs research first, then sources suppliers"></button>
       <div class="mode-hint" id="sourceHint">Stage 2 unlocks once a research report exists for this category.</div>
     </div>
 
@@ -312,6 +351,14 @@
     </div>
     <div class="report" id="report"><div class="empty">The final ranked report appears here.</div></div>
   </div>
+</div>
+
+<!-- Activity log: slide-up panel + bottom bar (end of the UI) -->
+<div class="logpanel" id="logPanel"><div class="logempty">No activity yet — run the pipeline to see calls here.</div></div>
+<div class="logbar">
+  <button id="logToggle" class="logbtn">📋 Show log</button>
+  <span class="logmeta" id="logMeta"></span>
+  <button id="logClear" class="logbtn ghost" style="margin-left:auto">Clear</button>
 </div>
 
 <script>
@@ -421,19 +468,47 @@ const BTN_HTML = {
 const $ = s => document.querySelector(s);
 const teamEl = $("#team"), tl = $("#timeline"), reportEl = $("#report");
 let es = null, reportBuf = "", running = false, mockMode = false;
-
-function setMode(mock){
-  mockMode = mock;
-  $("#seg-live").classList.toggle("active", !mock);
-  $("#seg-mock").classList.toggle("active", mock);
-  $("#modeHint").textContent = mock
-    ? "Mock — fully offline, no API key or credits used."
-    : "Live — uses your API key & credits for real research.";
+// Activity log state + where live runs send LLM calls (from /api/health).
+let apiBaseUrl = "https://api.anthropic.com", apiCustom = false;
+const logLines = [];
+function addLog(level, key, msg){
+  logLines.push({ t: new Date().toLocaleTimeString(), level, key, msg });
+  $("#logMeta").textContent = logLines.length + " events";
+  if($("#logPanel").classList.contains("open")) renderLog();
 }
-$("#seg-live").addEventListener("click", ()=>{ if(!running) setMode(false); });
-$("#seg-mock").addEventListener("click", ()=>{ if(!running) setMode(true); });
+function renderLog(){
+  const p = $("#logPanel");
+  if(!logLines.length){ p.innerHTML = '<div class="logempty">No activity yet — run the pipeline to see calls here.</div>'; return; }
+  p.innerHTML = logLines.map(l =>
+    `<div class="logrow ${l.level}"><span class="lt">${esc(l.t)}</span> <span class="lk">${esc(l.key)}</span> ${esc(l.msg)}</div>`
+  ).join("");
+  p.scrollTop = p.scrollHeight;
+}
+function toggleLog(){
+  const open = $("#logPanel").classList.toggle("open");
+  $("#logToggle").textContent = open ? "📋 Hide log" : "📋 Show log";
+  if(open) renderLog();
+}
+function clearLog(){ logLines.length = 0; $("#logMeta").textContent = ""; renderLog(); }
 
-let engine="standard";
+// Run mode: "live" (Anthropic), "groq" (free, via proxy), or "mock" (offline).
+let runMode = "live";
+function setRunMode(mode){
+  runMode = mode;
+  mockMode = (mode === "mock");          // kept for existing checks
+  $("#seg-live").classList.toggle("active", mode === "live");
+  $("#seg-groq").classList.toggle("active", mode === "groq");
+  $("#seg-mock").classList.toggle("active", mode === "mock");
+  $("#modeHint").innerHTML =
+    mode === "mock" ? "Mock — fully offline, no API key or credits used." :
+    mode === "groq" ? "Groq (free) — routes this run through the local proxy → Groq. Needs <code>./run_proxy.sh</code> running." :
+    "Live — uses your Anthropic API key &amp; credits for real research.";
+}
+$("#seg-live").addEventListener("click", ()=>{ if(!running) setRunMode("live"); });
+$("#seg-groq").addEventListener("click", ()=>{ if(!running) setRunMode("groq"); });
+$("#seg-mock").addEventListener("click", ()=>{ if(!running) setRunMode("mock"); });
+
+let engine="langgraph";   // default: drives every agent as an explicit node
 function setEngine(e){
   engine=e;
   $("#eng-standard").classList.toggle("active", e==="standard");
@@ -445,6 +520,7 @@ function setEngine(e){
 }
 $("#eng-standard").addEventListener("click", ()=>{ if(!running) setEngine("standard"); });
 $("#eng-langgraph").addEventListener("click", ()=>{ if(!running) setEngine("langgraph"); });
+setEngine(engine);   // apply default (LangGraph) — shows the graph panel + hint
 
 // LangGraph node highlighting (driven by the same stage events).
 function setGraphNode(name, state){
@@ -559,6 +635,48 @@ function showFailPopup(anchor){
 }
 function hideFailPopup(){ if(failPop) failPop.style.display="none"; }
 
+// --- Output popup: click any "finished/done" status pill to see its output. ---
+const agentOutputs = {};            // agent id -> captured subagent text
+let researchReport = "", sourcingReport = "";   // per-stage reports
+let outPop=null;
+function ensureOutPop(){
+  if(outPop) return outPop;
+  outPop=document.createElement("div");
+  outPop.className="outpop"; outPop.style.display="none";
+  outPop.addEventListener("click", e=>e.stopPropagation());
+  document.body.appendChild(outPop);
+  return outPop;
+}
+function _outputFor(pill){
+  const id=pill.id||"";
+  if(id.indexOf("cs-")===0){ const a=id.slice(3); return {title:a, md:(agentOutputs[a]||"").trim()}; }
+  const key=id.slice(3);
+  if(key==="s2") return {title:"Supplier sourcing · Javier", md:(sourcingReport||"").trim()};
+  if(key==="orc") return {title:"Full pipeline · Amanda", md:((researchReport+"\n\n"+sourcingReport)||reportBuf).trim()};
+  // s1 / aud / comp / pred → the research report (their sections live in it)
+  return {title:"Product research · Maria", md:(researchReport||reportBuf||"").trim()};
+}
+function showOutputPopup(anchor){
+  const p=ensureOutPop();
+  const {title, md} = _outputFor(anchor);
+  const bodyHtml = md
+    ? (window.marked ? marked.parse(md) : `<pre>${esc(md)}</pre>`)
+    : `<div style="color:var(--muted)">No output captured for this step — it may be summarized in the final report on the right.</div>`;
+  p.innerHTML = `<div class="outpop-h">▦ ${esc(title)} — output</div>`+
+    `<div class="outpop-body">${bodyHtml}</div>`+
+    `<div class="outpop-x">Click anywhere to dismiss</div>`;
+  p.style.display="block";
+  const pw=Math.min(560, window.innerWidth-20);
+  p.style.width=pw+"px";
+  const r=anchor.getBoundingClientRect();
+  let left=Math.min(Math.max(r.left,10), window.innerWidth-pw-10);
+  let top=r.bottom+6;
+  if(top+p.offsetHeight > window.innerHeight-10) top=Math.max(10, window.innerHeight-p.offsetHeight-10);
+  p.style.left=left+"px";
+  p.style.top=top+"px";
+}
+function hideOutputPopup(){ if(outPop) outPop.style.display="none"; }
+
 // Per-agent status pills: idle | waiting | working | finished | failed.
 const STAGE_KEY={research:"s1", sourcing:"s2"};
 function setStatus(key,state){
@@ -592,6 +710,8 @@ async function checkHealth(){
     const h=$("#health");
     h.className="dot "+(j.has_key?"ok":"bad");
     h.title=j.has_key?"API key detected":"ANTHROPIC_API_KEY missing on server";
+    if(j.base_url){ apiBaseUrl=j.base_url; apiCustom=!!j.custom_endpoint; }
+    updateProxyChip(j);
   }catch(e){ $("#health").className="dot bad"; }
 }
 
@@ -599,8 +719,19 @@ function launch(kind){
   if(running) return;
   const cat=$("#cat").value.trim(); if(cat.length<2){$("#cat").focus();return;}
   const top=$("#top").value||10, model=$("#model").value, mock=mockMode;
+  const provider = (runMode==="groq") ? "groq" : "anthropic";
   running=true; reportBuf=""; clearAgents(); activeSub=null; clearStatuses(); clearGraph();
   runKind=kind; researchPhase=(kind!=="sourcing"); hadError=false; succeeded=false; failMessages=[]; hideFailPopup();
+  Object.keys(agentOutputs).forEach(k=>delete agentOutputs[k]); researchReport=""; sourcingReport=""; hideOutputPopup();
+  // Log which backend this run uses.
+  if(runMode==="mock"){
+    addLog("mock","MOCK",`Using mock model — fully offline, no API calls (${kind})`);
+  } else if(runMode==="groq"){
+    addLog("api","GROQ",`Running FREE via the local proxy → Groq (${kind})`);
+  } else {
+    const tgt = apiCustom ? `${apiBaseUrl} (custom endpoint)` : `${apiBaseUrl} (Anthropic)`;
+    addLog("api","LIVE",`Calling LLM API: ${tgt} · model ${model}`+(kind==="pipeline"?` · ${engine} engine`:""));
+  }
   if(kind==="pipeline"){ setStatus("orc","working"); setStatus("s1","waiting"); setStatus("s2","waiting"); }
   else if(kind==="sourcing"){ setStatus("s2","working"); }
   else { setStatus("s1","working"); }
@@ -615,14 +746,17 @@ function launch(kind){
   let url;
   if(kind==="pipeline"){
     const engLabel = engine==="langgraph" ? "LangGraph" : "Standard";
-    addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>${engLabel}</b> engine${mock?" · <b>MOCK</b>":""}`);
-    url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&engine=${engine}&mock=${mock}`;
+    const tag = mock?" · <b>MOCK</b>":(provider==="groq"?" · <b>GROQ</b>":"");
+    addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>${engLabel}</b> engine${tag}`);
+    url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&engine=${engine}&provider=${provider}&mock=${mock}`;
   } else if(kind==="sourcing"){
-    addEv("","🏭",`Sourcing suppliers for <b>${esc(cat)}</b> · ${esc(model)}${mock?" · <b>MOCK</b>":""}`);
-    url=`/api/sourcing?category=${encodeURIComponent(cat)}&model=${encodeURIComponent(model)}&mock=${mock}`;
+    const tag = mock?" · <b>MOCK</b>":(provider==="groq"?" · <b>GROQ</b>":"");
+    addEv("","🏭",`Sourcing suppliers for <b>${esc(cat)}</b> · ${esc(model)}${tag}`);
+    url=`/api/sourcing?category=${encodeURIComponent(cat)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}`;
   } else {
-    addEv("","▶",`Researching <b>${esc(cat)}</b> · top ${esc(top)} · ${esc(model)}${mock?" · <b>MOCK</b>":""}`);
-    url=`/api/research?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&mock=${mock}`;
+    const tag = mock?" · <b>MOCK</b>":(provider==="groq"?" · <b>GROQ</b>":"");
+    addEv("","▶",`Researching <b>${esc(cat)}</b> · top ${esc(top)} · ${esc(model)}${tag}`);
+    url=`/api/research?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}`;
   }
   es=new EventSource(url);
   es.onmessage= e=>handle(JSON.parse(e.data));
@@ -643,31 +777,59 @@ function handle(ev){
       if(ev.stage==="sourcing") setGraphNode("sourcing","active");
       $("#graphStatus").textContent = "· running "+esc(ev.stage)+" stage";
       addEv("stage","—",`<b>${esc(ev.label||ev.stage)}</b>`);
+      addLog("info","STAGE", ev.label||ev.stage);
       $("#status").textContent="running";
       break;
-    case "start": if(researchPhase) setAgent("lead","active"); break;
+    case "start":
+      if(researchPhase) setAgent("lead","active");
+      addLog(mockMode?"mock":"api","SERVICE","backend started"+(ev.model?` · model reported: ${ev.model}`:""));
+      break;
+    case "fallback":
+      // Anthropic failed (e.g. credit too low) → retrying via Gemini proxy.
+      reportBuf=""; renderReport();                 // fresh report for the retry
+      hadError=false; succeeded=false;              // the failed attempt was suppressed
+      addEv("","🔄",`<b>${esc(ev.message)}</b>`);
+      addLog("api","FALLBACK", ev.message);
+      $("#status").textContent="retrying via Gemini";
+      break;
     case "subagent":
       if(activeSub) setAgent(activeSub,"done");
       activeSub=ev.name; if(researchPhase) setAgent("lead","active"); setAgent(ev.name,"active");
       advanceGraph(ev.name);
       addEv("sub","➤",`Delegated to <b>${esc(ev.name)}</b>`+(ev.task?`<div class="meta">${esc(ev.task)}</div>`:""));
+      addLog("info","AGENT", `→ ${ev.name}`+(ev.task?`: ${ev.task}`:""));
       break;
-    case "tool":
-      addEv("tool","🔧",`<code>${esc(ev.name.replace(/^mcp__[^_]+__/,""))}</code> <span class="meta">${esc(ev.summary)}</span>`);
+    case "tool": {
+      const tn=ev.name.replace(/^mcp__[^_]+__/,"");
+      addEv("tool","🔧",`<code>${esc(tn)}</code> <span class="meta">${esc(ev.summary)}</span>`);
+      // WebSearch / WebFetch are real outbound API calls; flag them as "api".
+      const isApiCall=/^(WebSearch|WebFetch)$/.test(tn);
+      addLog(isApiCall?"api":"tool","TOOL", `${tn} — ${ev.summary||""}`);
       break;
+    }
     case "thinking": break;
     case "text":
       if(ev.agent==="lead"){ reportBuf+=ev.text; renderReport(); }
-      else { addEv("","💬",`<span class="txt">${esc(ev.text.slice(0,300))}</span>`); }
+      else {
+        if(activeSub) agentOutputs[activeSub]=(agentOutputs[activeSub]||"")+ev.text;  // capture per-agent output
+        addEv("","💬",`<span class="txt">${esc(ev.text.slice(0,300))}</span>`);
+      }
       break;
     case "result":
       if(ev.is_error){ hadError=true; failMessages.push(ev.message || ev.report || "The run finished with errors."); }
       else succeeded=true;
-      reportBuf = ev.report || reportBuf; renderReport(true);
+      // Capture per-stage output so clicking a finished status shows it —
+      // but NEVER capture an error result as "output".
+      if(ev.report && !ev.is_error){ if(researchPhase) researchReport=ev.report; else sourcingReport=ev.report; }
+      if(!ev.is_error){ reportBuf = ev.report || reportBuf; } renderReport(true);
       $("#status").textContent= ev.is_error ? "finished with errors" : "complete";
       showStat("s-turns", ev.num_turns); showStat("s-time", fmtMs(ev.duration_ms));
       showStat("s-cost", ev.cost_usd!=null ? "$"+Number(ev.cost_usd).toFixed(4) : "—");
       addLinks(); addEv("","✅","Done.");
+      addLog(ev.is_error?"error":"result", ev.is_error?"FAILED":"RESULT",
+        (ev.is_error?"finished with errors":"completed")
+        +(ev.num_turns!=null?` · ${ev.num_turns} turns`:"")
+        +(ev.cost_usd!=null?` · $${Number(ev.cost_usd).toFixed(4)}`:""));
       if(researchPhase) setAgent("lead", ev.is_error ? "failed" : "done");
       if(activeSub) setAgent(activeSub, ev.is_error ? "failed" : "done");
       break;
@@ -690,7 +852,8 @@ function handle(ev){
       // A graph node mid-run becomes failed; queued ones clear to not-started.
       GRAPH_NODES.forEach(n=>{ const el=$("#gn-"+n); if(el && el.classList.contains("active")) setGraphNode(n,null); });
       const oav=$("#av-orc"); if(oav) oav.classList.remove("active");
-      addEv("err","❌",esc(ev.message)); $("#status").textContent="error"; break;
+      addEv("err","❌",esc(ev.message)); addLog("error","ERROR", ev.message||"unknown error");
+      $("#status").textContent="error"; break;
     }
     case "done": finish(); break;
   }
@@ -725,7 +888,7 @@ function finish(){
   $("#run").disabled=false; $("#run").innerHTML=BTN_HTML.run;
   $("#pipe").disabled=false; $("#pipe").innerHTML=BTN_HTML.pipe;
   const orc=$("#av-orc"); if(orc) orc.classList.remove("active");
-  $("#source").innerHTML=BTN_HTML.source;
+  $("#source").disabled=false; $("#source").innerHTML=BTN_HTML.source;
   // Re-check: a research/pipeline run may have just produced the report.
   refreshSourceAvailability();
 }
@@ -737,13 +900,13 @@ let reportAvailable = false;
 function applySourceState(){
   if(running) return;
   const btn=$("#source");
-  btn.disabled = !reportAvailable;
+  btn.disabled = false;   // always clickable — runs research first if needed
   btn.title = reportAvailable
     ? "Source suppliers from this category's saved research report"
-    : "Run research for this category first — no saved report yet";
+    : "No saved report yet — clicking runs research first, then sources suppliers";
   $("#sourceHint").textContent = reportAvailable
     ? "Stage 2 ready — a research report exists for this category."
-    : "Stage 2 unlocks once a research report exists for this category.";
+    : "No report yet — Source suppliers will run research first, then source.";
 }
 async function refreshSourceAvailability(){
   const cat=$("#cat").value.trim();
@@ -759,24 +922,63 @@ async function refreshSourceAvailability(){
 $("#pipe").innerHTML=BTN_HTML.pipe; $("#run").innerHTML=BTN_HTML.run; $("#source").innerHTML=BTN_HTML.source;
 renderTeam();
 clearStatuses();  // every agent shows "not started" until a run begins
-// Click a "failed" status pill (chip or stage, anywhere) to see the reason.
-// Single document-level handler: open on a failed pill, close otherwise.
+// Click a status pill: "failed" → reason popup; "finished/done" → output popup.
 document.addEventListener("click", e=>{
-  const pill=e.target.closest && e.target.closest(".status.failed");
-  if(pill){ showFailPopup(pill); }
-  else if(!(e.target.closest && e.target.closest(".failpop"))){ hideFailPopup(); }
+  const cl = e.target.closest ? e.target.closest.bind(e.target) : ()=>null;
+  const failed = cl(".status.failed");
+  const done = cl(".status.finished");
+  if(failed){ hideOutputPopup(); showFailPopup(failed); return; }
+  if(done){ hideFailPopup(); showOutputPopup(done); return; }
+  if(!cl(".failpop")) hideFailPopup();
+  if(!cl(".outpop")) hideOutputPopup();
 });
-window.addEventListener("resize", hideFailPopup);
+window.addEventListener("resize", ()=>{ hideFailPopup(); hideOutputPopup(); });
+// Activity log controls (bottom bar).
+$("#logToggle").addEventListener("click", toggleLog);
+$("#logClear").addEventListener("click", clearLog);
 $("#pipe").addEventListener("click", ()=>launch("pipeline"));
 $("#run").addEventListener("click", ()=>launch("research"));
-$("#source").addEventListener("click", ()=>launch("sourcing"));
+// "Source suppliers": if a research report exists for this category, source
+// directly; otherwise run the full pipeline (research → suppliers) instead.
+async function startSourcing(){
+  if(running) return;
+  const cat=$("#cat").value.trim(); if(cat.length<2){ $("#cat").focus(); return; }
+  let exists=false;
+  try{
+    const r=await fetch("/api/has_report?category="+encodeURIComponent(cat));
+    exists=!!(await r.json()).exists;
+  }catch(e){}
+  if(exists){
+    launch("sourcing");
+  } else {
+    launch("pipeline");   // research → sourcing in one go
+    addEv("","ℹ️",`No saved research for <b>${esc(cat)}</b> — running research first, then sourcing.`);
+    addLog("info","AUTO",`No report for "${cat}" — running full pipeline (research → suppliers).`);
+  }
+}
+$("#source").addEventListener("click", startSourcing);
 let _catTimer=null;
 $("#cat").addEventListener("input", ()=>{ clearTimeout(_catTimer); _catTimer=setTimeout(refreshSourceAvailability,300); });
 $("#cat").addEventListener("keydown", e=>{ if(e.key==="Enter") launch("research"); });
 
 // --- API-backed init, runs once the user is signed in ---
+function updateProxyChip(j){
+  const c=$("#proxyChip"); if(!c) return;
+  if(!j || !j.gemini_configured){ c.style.display="none"; return; }  // only show when Gemini is set up
+  c.style.display="";
+  const up=!!j.gemini_proxy_reachable;
+  c.className="proxychip "+(up?"up":"down");
+  c.innerHTML=`<span class="pdot"></span>Fallback proxy ${up?"up":"down"}`;
+  c.title = up
+    ? `LLM fallback ready — proxy reachable at ${j.gemini_proxy_url}`
+    : `Fallback configured but the proxy is NOT reachable at ${j.gemini_proxy_url}. Start it with ./run_proxy.sh`;
+}
 let appReady=false;
-function initApp(){ if(appReady) return; appReady=true; checkHealth(); refreshSourceAvailability(); }
+function initApp(){
+  if(appReady) return; appReady=true;
+  checkHealth(); refreshSourceAvailability();
+  setInterval(checkHealth, 15000);  // keep the Gemini-proxy indicator fresh
+}
 
 // --- email login / signup (two explicit buttons) ---
 function showGate(show){ $("#authGate").style.display=show?"flex":"none"; }

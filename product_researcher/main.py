@@ -80,9 +80,9 @@ def main(argv: list[str] | None = None) -> int:
         description="Multi-agent product researcher (Claude Agent SDK)."
     )
     parser.add_argument("category", help="Product category / market to research.")
-    parser.add_argument("--top", type=int, default=10, help="How many products to predict.")
+    parser.add_argument("--top", type=int, default=5, help="How many products to predict.")
     parser.add_argument("--out", default="./reports", help="Output directory.")
-    parser.add_argument("--model", default="sonnet", help="Lead model (sonnet/opus/haiku).")
+    parser.add_argument("--model", default="haiku", help="Lead model (haiku/sonnet/opus).")
     parser.add_argument("--mock", action="store_true",
                         help="Run fully offline with canned data (no API key or credits).")
     args = parser.parse_args(argv)

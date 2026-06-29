@@ -1,0 +1,34 @@
+# LiteLLM proxy — exposes an Anthropic-compatible /v1/messages endpoint and
+# routes every request to Google Gemini's free tier. Point the app's
+# ANTHROPIC_BASE_URL at this proxy to make real (free) LLM calls without an
+# Anthropic key.
+#
+# Run:  ./run_proxy.sh   (see LITELLM_GEMINI_SETUP.md)
+
+model_list:
+  # Catch-all: whatever model the Claude Agent SDK asks for (sonnet / haiku /
+  # a full claude-* id) is routed to Gemini Flash. One line, no per-name mapping.
+  #
+  # We use Gemini's OpenAI-COMPATIBLE endpoint (the `openai/` provider + api_base)
+  # because it authenticates with `Authorization: Bearer <key>` — the method
+  # Google's NEW "AQ.*" API keys require. The native `gemini/` provider sends
+  # `x-goog-api-key` to the Generative Language REST API, which AQ. keys reject.
+  # This Bearer path works with BOTH new AQ. keys and old AIza keys.
+  - model_name: "*"
+    litellm_params:
+      model: openai/gemini-2.0-flash
+      api_base: https://generativelanguage.googleapis.com/v1beta/openai/
+      api_key: os.environ/GEMINI_API_KEY
+
+# NO master_key — verified fix for the "400 No connected db" error.
+# With a master_key set, LiteLLM validates every incoming key; if it isn't an
+# exact match it does a DB lookup, and with no database that surfaces as the
+# misleading "No connected db". Without master_key the local proxy accepts any
+# request (the app's auth header is ignored), so the error can't occur. This is
+# fine for a localhost-only proxy. To re-enable auth (e.g. if exposed beyond
+# localhost) add `general_settings: { master_key: os.environ/LITELLM_MASTER_KEY }`
+# and ensure the app sends that exact value.
+
+litellm_settings:
+  # Be forgiving about params Gemini doesn't support (the SDK sends a few).
+  drop_params: true

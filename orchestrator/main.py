@@ -66,7 +66,7 @@ def main(argv=None) -> int:
                    help="Top products to source suppliers for.")
     p.add_argument("--per", type=int, default=DEFAULT_PER_PRODUCT, help="Suppliers per product.")
     p.add_argument("--out", default="./reports", help="Reports directory (shared by both stages).")
-    p.add_argument("--model", default="sonnet", help="Lead model (sonnet/opus/haiku).")
+    p.add_argument("--model", default="haiku", help="Lead model (haiku/sonnet/opus).")
     p.add_argument("--mock", action="store_true",
                    help="Run the whole pipeline offline (no API key or credits).")
     p.add_argument("--langgraph", action="store_true",

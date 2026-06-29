@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 from typing import Any, AsyncIterator
+from urllib.parse import urlparse
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -72,7 +74,7 @@ Be concrete and evidence-driven. Do not fabricate sources.
 `supplier_sourcer` package — which reads the predictions_*.json you save here.)"""
 
 
-def _make_options(model: str, output_dir: str):
+def _make_options(model: str, output_dir: str, env: dict | None = None):
     from claude_agent_sdk import ClaudeAgentOptions
 
     return ClaudeAgentOptions(
@@ -87,16 +89,76 @@ def _make_options(model: str, output_dir: str):
         allowed_tools=[
             "Task",  # subagent dispatch
             "Agent",
-            "WebSearch",
-            "WebFetch",
+            "WebSearch",   # WebFetch omitted to keep input tokens (cost) down
             TOOL_SCORE,
             TOOL_SAVE,
         ],
         # Non-interactive: never block waiting for a human to approve a tool.
         permission_mode="bypassPermissions",
-        max_turns=60,
+        max_turns=30,
         cwd=output_dir,
+        # env (merged over os.environ in the CLI subprocess) lets the fallback
+        # re-point this run at the LiteLLM proxy → Gemini.
+        env=env or {},
     )
+
+
+def _read_dotenv_value(key: str) -> str | None:
+    """Backstop: read KEY=value from the project .env directly, so the fallback
+    works even if the server process was started before the key was added."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(os.getcwd(), ".env"),
+        os.path.join(os.path.dirname(here), ".env"),  # repo root (parent of package)
+    ]
+    for path in candidates:
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    if k.strip() == key:
+                        return v.strip().strip('"').strip("'")
+        except FileNotFoundError:
+            continue
+    return None
+
+
+def _env(key: str, default: str | None = None) -> str | None:
+    return os.getenv(key) or _read_dotenv_value(key) or default
+
+
+def _fallback_env() -> dict | None:
+    """Env that re-points a run at the LiteLLM proxy (→ Groq or Gemini), or None
+    if no fallback is configured. Enabled when GROQ_API_KEY or GEMINI_API_KEY is
+    available (checked in the process env AND the .env file)."""
+    if not (_env("GROQ_API_KEY") or _env("GEMINI_API_KEY")):
+        return None
+    base = (_env("GEMINI_FALLBACK_BASE_URL") or "http://localhost:4000").strip()
+    # Must equal the proxy's master_key. Default to sk-local-test (same default
+    # the proxy/run script uses). Do NOT fall back to the real ANTHROPIC_API_KEY
+    # — that would mismatch the proxy and trigger "400 No connected db".
+    key = (_env("LITELLM_MASTER_KEY") or "sk-local-test").strip()
+    # ANTHROPIC_AUTH_TOKEN makes the CLI send the key as `Authorization: Bearer`,
+    # which is what LiteLLM's master-key auth reads. With only ANTHROPIC_API_KEY
+    # the CLI sends `x-api-key`, LiteLLM sees no Bearer token, tries a DB lookup,
+    # and returns the misleading "No connected db".
+    return {"ANTHROPIC_BASE_URL": base, "ANTHROPIC_API_KEY": key, "ANTHROPIC_AUTH_TOKEN": key}
+
+
+def _proxy_reachable(base_url: str, timeout: float = 2.0) -> bool:
+    """Quick TCP check so we never hand the SDK a dead proxy URL (which would
+    hang the run). Returns False if the host:port can't be connected to."""
+    try:
+        u = urlparse(base_url)
+        host = u.hostname or "localhost"
+        port = u.port or (443 if u.scheme == "https" else 80)
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
 
 
 def _short(value: Any, limit: int = 160) -> str:
@@ -173,112 +235,125 @@ def _friendly_error(exc) -> str | None:
     return f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__
 
 
-async def run_stream(
-    category: str,
-    top: int = 10,
-    output_dir: str = "./reports",
-    model: str = "sonnet",
-) -> AsyncIterator[dict]:
-    """Run the pipeline, yielding UI events as the agents work."""
-    output_dir = os.path.abspath(output_dir)
-    os.makedirs(output_dir, exist_ok=True)
-
-    yield {"type": "start", "category": category, "top": top, "model": model}
-
-    # Map a tool_use id -> the agent that issued it, so results can be attributed
-    # and Task dispatches can be labelled with their subagent name.
+async def _attempt(prompt: str, model: str, output_dir: str, env: dict | None):
+    """One query attempt. Yields (event, is_fatal) tuples; is_fatal is True for a
+    final event caused by a fatal API error (e.g. credit balance too low)."""
     tool_use_owner: dict[str, str] = {}
     report_parts: list[str] = []
     result_emitted = False
-
-    options = _make_options(model, output_dir)
-    prompt = build_lead_prompt(category, top, output_dir)
-
+    options = _make_options(model, output_dir, env=env)
     try:
         async for message in query(prompt=prompt, options=options):
             if isinstance(message, AssistantMessage):
-                # parent_tool_use_id present => this text came from a subagent
                 agent = "lead" if not message.parent_tool_use_id else "subagent"
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         if block.text.strip():
                             if agent == "lead":
                                 report_parts.append(block.text)
-                            yield {"type": "text", "agent": agent, "text": block.text}
+                            yield {"type": "text", "agent": agent, "text": block.text}, False
                     elif isinstance(block, ThinkingBlock):
-                        yield {"type": "thinking", "agent": agent}
+                        yield {"type": "thinking", "agent": agent}, False
                     elif isinstance(block, ToolUseBlock):
                         name = block.name
                         tin = block.input if isinstance(block.input, dict) else {}
                         if name in ("Task", "Agent"):
-                            sub = (
-                                tin.get("subagent_type")
-                                or tin.get("subagentType")
-                                or tin.get("name")
-                                or "subagent"
-                            )
+                            sub = (tin.get("subagent_type") or tin.get("subagentType")
+                                   or tin.get("name") or "subagent")
                             tool_use_owner[block.id] = sub
-                            yield {
-                                "type": "subagent",
-                                "name": sub,
-                                "task": _short(
-                                    tin.get("description")
-                                    or tin.get("prompt", ""),
-                                    200,
-                                ),
-                            }
+                            yield {"type": "subagent", "name": sub,
+                                   "task": _short(tin.get("description") or tin.get("prompt", ""), 200)}, False
                         else:
                             tool_use_owner[block.id] = name
-                            yield {
-                                "type": "tool",
-                                "name": name,
-                                "agent": agent,
-                                "summary": _tool_summary(name, tin),
-                            }
+                            yield {"type": "tool", "name": name, "agent": agent,
+                                   "summary": _tool_summary(name, tin)}, False
             elif isinstance(message, ResultMessage):
                 report = "".join(report_parts).strip() or (getattr(message, "result", "") or "").strip()
                 is_err = _result_is_error(message, report)
                 if not is_err:
                     result_emitted = True
-                yield {
-                    "type": "result",
-                    "duration_ms": getattr(message, "duration_ms", None),
-                    "cost_usd": getattr(message, "total_cost_usd", None),
-                    "num_turns": getattr(message, "num_turns", None),
-                    "is_error": is_err,
-                    "report": report,
-                }
-    except Exception as exc:  # surface failures to the UI instead of dying silently
+                yield ({"type": "result",
+                        "duration_ms": getattr(message, "duration_ms", None),
+                        "cost_usd": getattr(message, "total_cost_usd", None),
+                        "num_turns": getattr(message, "num_turns", None),
+                        "is_error": is_err, "report": report},
+                       is_err and _looks_like_fatal(report))
+    except Exception as exc:
         msg = _friendly_error(exc)
         report = "".join(report_parts).strip()
         if msg is None and not _looks_like_fatal(report):
-            # Benign non-zero exit AFTER a real turn — emit success if not already.
             if not result_emitted and report:
                 yield {"type": "result", "duration_ms": None, "cost_usd": None,
-                       "num_turns": None, "is_error": False, "report": report}
+                       "num_turns": None, "is_error": False, "report": report}, False
             elif not result_emitted:
                 yield {"type": "error",
-                       "message": "Agent run error: the run did not complete successfully."}
+                       "message": "Agent run error: the run did not complete successfully."}, False
         elif not result_emitted:
-            yield {"type": "error", "message": msg or ("Agent run error: " + (report or "failed"))}
+            fatal = _looks_like_fatal(str(exc)) or _looks_like_fatal(report)
+            yield {"type": "error", "message": msg or ("Agent run error: " + (report or "failed"))}, fatal
 
 
-async def run_segment(
-    prompt: str,
-    model: str,
-    output_dir: str,
-    collect: list[str] | None = None,
+async def run_stream(
+    category: str,
+    top: int = 10,
+    output_dir: str = "./reports",
+    model: str = "sonnet",
+    force_env: dict | None = None,
 ) -> AsyncIterator[dict]:
-    """Run ONE focused segment of the pipeline (a single lead prompt) and yield
-    UI events, without emitting the pipeline-level 'start'/'result' frames.
+    """Run the pipeline, yielding UI events. If the primary (Anthropic) attempt
+    hits a fatal API error such as a too-low credit balance, automatically
+    retry the whole run via the LiteLLM proxy (when configured).
 
-    Used by the decomposed LangGraph nodes, where each node drives a single
-    subagent (or the predictor + save) as its own query and threads its textual
-    output to the next node via `collect`. Reuses the same options/tooling and
-    SDK-message translation as run_stream().
-    """
+    force_env: when set (e.g. the "Run on Groq" button), route the WHOLE run
+    through the proxy from the start — no Anthropic call, no fallback."""
     output_dir = os.path.abspath(output_dir)
-    options = _make_options(model, output_dir)
+    os.makedirs(output_dir, exist_ok=True)
+    prompt = build_lead_prompt(category, top, output_dir)
+
+    yield {"type": "start", "category": category, "top": top, "model": model}
+
+    if force_env is not None:
+        if not _proxy_reachable(force_env.get("ANTHROPIC_BASE_URL", "")):
+            yield {"type": "error",
+                   "message": f"Proxy not reachable at {force_env.get('ANTHROPIC_BASE_URL')} — "
+                              "start it with ./run_proxy.sh, then re-run."}
+            return
+        async for ev, _fatal in _attempt(prompt, model, output_dir, force_env):
+            yield ev
+        return
+
+    fb = _fallback_env()
+    envs = [None] + ([fb] if fb else [])
+    for i, env in enumerate(envs):
+        if i > 0:  # fallback attempt
+            if not _proxy_reachable(env.get("ANTHROPIC_BASE_URL", "")):
+                yield {"type": "error",
+                       "message": f"Gemini fallback proxy not reachable at {env.get('ANTHROPIC_BASE_URL')} — "
+                                  "start it with ./run_proxy.sh (and pip install \"litellm[proxy]\"), then re-run."}
+                return
+            yield {"type": "fallback",
+                   "message": "Anthropic API unavailable (e.g. credit balance too low) — "
+                              "retrying via the LiteLLM proxy → Gemini."}
+        retry = False
+        async for ev, fatal in _attempt(prompt, model, output_dir, env):
+            if fatal and i == 0 and fb:
+                retry = True  # suppress this fatal event; fall back instead
+                break
+            if fatal and i == 0 and not fb:
+                hint = ("  (Gemini fallback not active — add GEMINI_API_KEY to .env "
+                        "and run ./run_proxy.sh.)")
+                if ev.get("type") == "error":
+                    ev = {**ev, "message": ev.get("message", "") + hint}
+                elif ev.get("type") == "result":
+                    ev = {**ev, "report": (ev.get("report", "") + hint).strip()}
+            yield ev
+        if not retry:
+            return
+
+
+async def _segment_once(prompt, model, output_dir, env, collect):
+    """One segment attempt. Yields (event, is_fatal) tuples."""
+    options = _make_options(model, output_dir, env=env)
     tool_use_owner: dict[str, str] = {}
     seg_error_sent = False
     try:
@@ -290,41 +365,80 @@ async def run_segment(
                         if block.text.strip():
                             if collect is not None:
                                 collect.append(block.text)
-                            yield {"type": "text", "agent": agent, "text": block.text}
+                            yield {"type": "text", "agent": agent, "text": block.text}, False
                     elif isinstance(block, ThinkingBlock):
-                        yield {"type": "thinking", "agent": agent}
+                        yield {"type": "thinking", "agent": agent}, False
                     elif isinstance(block, ToolUseBlock):
                         name = block.name
                         tin = block.input if isinstance(block.input, dict) else {}
                         if name in ("Task", "Agent"):
-                            sub = (
-                                tin.get("subagent_type")
-                                or tin.get("subagentType")
-                                or tin.get("name")
-                                or "subagent"
-                            )
+                            sub = (tin.get("subagent_type") or tin.get("subagentType")
+                                   or tin.get("name") or "subagent")
                             tool_use_owner[block.id] = sub
                             yield {"type": "subagent", "name": sub,
-                                   "task": _short(tin.get("description")
-                                                  or tin.get("prompt", ""), 200)}
+                                   "task": _short(tin.get("description") or tin.get("prompt", ""), 200)}, False
                         else:
                             tool_use_owner[block.id] = name
                             yield {"type": "tool", "name": name, "agent": agent,
-                                   "summary": _tool_summary(name, tin)}
+                                   "summary": _tool_summary(name, tin)}, False
             elif isinstance(message, ResultMessage):
-                # Segment results are normally ignored (the graph emits the single
-                # pipeline 'result'), but a genuine failure (e.g. credit balance)
-                # must surface so the node fails instead of returning empty text.
                 seg_report = "".join(collect or []).strip() or (getattr(message, "result", "") or "").strip()
                 if _result_is_error(message, seg_report):
                     seg_error_sent = True
-                    yield {"type": "error",
-                           "message": "Agent run error: " + (seg_report or getattr(message, "subtype", "") or "failed")}
-        # Catch a fatal message that arrived only as assistant text.
+                    yield ({"type": "error",
+                            "message": "Agent run error: " + (seg_report or getattr(message, "subtype", "") or "failed")},
+                           _looks_like_fatal(seg_report))
         if not seg_error_sent and _looks_like_fatal("".join(collect or [])):
             seg_error_sent = True
-            yield {"type": "error", "message": "Agent run error: the agent reported a fatal error."}
+            yield {"type": "error", "message": "Agent run error: the agent reported a fatal error."}, True
     except Exception as exc:
         msg = _friendly_error(exc)
-        if msg is not None and not seg_error_sent:  # benign success exit → segment ok
-            yield {"type": "error", "message": msg}
+        if msg is not None and not seg_error_sent:
+            yield {"type": "error", "message": msg}, (_looks_like_fatal(str(exc)) or _looks_like_fatal("".join(collect or [])))
+
+
+async def run_segment(
+    prompt: str,
+    model: str,
+    output_dir: str,
+    collect: list[str] | None = None,
+    force_env: dict | None = None,
+) -> AsyncIterator[dict]:
+    """Run ONE focused segment (a single lead prompt) and yield UI events,
+    without the pipeline-level 'start'/'result' frames. On a fatal API error
+    (e.g. credit balance too low) it retries via the LiteLLM proxy.
+
+    force_env: route this segment through the proxy from the start (Groq button).
+    """
+    output_dir = os.path.abspath(output_dir)
+    if force_env is not None:
+        if not _proxy_reachable(force_env.get("ANTHROPIC_BASE_URL", "")):
+            yield {"type": "error",
+                   "message": f"Proxy not reachable at {force_env.get('ANTHROPIC_BASE_URL')} — "
+                              "start it with ./run_proxy.sh, then re-run."}
+            return
+        async for ev, _fatal in _segment_once(prompt, model, output_dir, force_env, collect):
+            yield ev
+        return
+    fb = _fallback_env()
+    envs = [None] + ([fb] if fb else [])
+    for i, env in enumerate(envs):
+        if i > 0:  # fallback: discard the failed attempt's text and announce
+            if not _proxy_reachable(env.get("ANTHROPIC_BASE_URL", "")):
+                yield {"type": "error",
+                       "message": f"Gemini fallback proxy not reachable at {env.get('ANTHROPIC_BASE_URL')} — "
+                                  "start it with ./run_proxy.sh, then re-run."}
+                return
+            if collect is not None:
+                collect.clear()
+            yield {"type": "fallback",
+                   "message": "Anthropic API unavailable (e.g. credit balance too low) — "
+                              "retrying via the LiteLLM proxy → Gemini."}
+        retry = False
+        async for ev, fatal in _segment_once(prompt, model, output_dir, env, collect):
+            if fatal and i == 0 and fb:
+                retry = True
+                break
+            yield ev
+        if not retry:
+            return

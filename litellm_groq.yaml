@@ -1,0 +1,14 @@
+# LiteLLM proxy config — routes every request to Groq's free tier.
+# Used automatically by run_proxy.sh when GROQ_API_KEY is set in .env.
+# Groq uses standard API keys (gsk_...) and isn't affected by Google's AQ-key
+# migration, so it "just works" through LiteLLM.
+
+model_list:
+  - model_name: "*"
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+
+# No master_key on purpose (local, localhost-only proxy) — see litellm_gemini.yaml.
+litellm_settings:
+  drop_params: true
