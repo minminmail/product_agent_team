@@ -1,0 +1,17 @@
+# Marketing-research sources the research agents (trend-scout, market-analyst)
+# focus their web searches on, instead of crawling the open web.
+#
+# Edit freely: one source per line, "Name — what it's good for".
+# Lines starting with # are ignored. Restart the app to apply changes.
+# You can also override this list entirely with the RESEARCH_SOURCES env var
+# (comma- or newline-separated).
+
+Amazon (Best Sellers, Movers & Shakers, review counts/ratings) — demand & pricing
+Google Trends — search-interest momentum
+Exploding Topics — emerging trends
+Trend Hunter — trend reports
+Statista — market size & statistics
+Reddit — community demand & honest discussion
+TikTok (#TikTokMadeMeBuyIt) — social virality
+Etsy / eBay — niche & handmade demand
+Product Hunt / Kickstarter — new product launches

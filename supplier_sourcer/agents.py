@@ -22,8 +22,11 @@ AGENTS: dict[str, AgentDefinition] = {
         ),
         prompt=(
             "You are a meticulous sourcing specialist. You are given a small list "
-            "of products. For EACH product, use web search to find real, specific "
-            "manufacturers or suppliers that could produce/supply it.\n\n"
+            "of products. For EACH product, find real, specific manufacturers or "
+            "suppliers that could produce/supply it.\n\n"
+            "SEARCH BUDGET: do AT MOST 2 web searches per product, and only fetch a "
+            "page when you need a supplier's contact details. Lean on your own "
+            "knowledge of major manufacturers; do not browse exhaustively.\n\n"
             "Quality matters far more than quantity. Prioritise suppliers that are:\n"
             "  • TRUSTWORTHY — strong reputation, verifiable reviews, years in "
             "business, real company presence (not anonymous listings).\n"
@@ -48,6 +51,6 @@ AGENTS: dict[str, AgentDefinition] = {
             "than guessing."
         ),
         tools=WEB_TOOLS + [TOOL_SCORE_SUPPLIER],
-        model="sonnet",
+        model="haiku",
     ),
 }

@@ -17,12 +17,58 @@ Supplier sourcing is a SEPARATE, independent agent — see the top-level
 
 from __future__ import annotations
 
+import os
+import re
+
 from claude_agent_sdk import AgentDefinition
 
 from .tools import TOOL_SAVE, TOOL_SCORE
 
-# Tools the whole team is allowed to reach for.
-WEB_TOOLS = ["WebSearch", "WebFetch"]
+# Tools the whole team is allowed to reach for. WebFetch is intentionally
+# excluded: pulling full web pages into context is the biggest token cost, so
+# the research agents rely on WebSearch result snippets instead.
+WEB_TOOLS = ["WebSearch"]
+
+# Built-in default high-signal sources (used if no file / env override exists).
+DEFAULT_SOURCES = [
+    "Amazon (Best Sellers, Movers & Shakers, review counts/ratings) — demand & pricing",
+    "Google Trends — search-interest momentum",
+    "Exploding Topics — emerging trends",
+    "Trend Hunter — trend reports",
+    "Statista — market size & statistics",
+    "Reddit — community demand & honest discussion",
+    "TikTok (#TikTokMadeMeBuyIt) — social virality",
+    "Etsy / eBay — niche & handmade demand",
+    "Product Hunt / Kickstarter — new product launches",
+]
+
+
+def _load_sources() -> list[str]:
+    """Load the focus-source list. Priority: RESEARCH_SOURCES env var (comma/
+    newline separated) → research_sources.txt (repo root or cwd) → defaults.
+    Makes the list editable without touching code."""
+    env = os.getenv("RESEARCH_SOURCES")
+    if env:
+        items = [s.strip() for s in re.split(r"[\n,]", env) if s.strip()]
+        if items:
+            return items
+    here = os.path.dirname(os.path.abspath(__file__))
+    for path in (os.path.join(os.getcwd(), "research_sources.txt"),
+                 os.path.join(os.path.dirname(here), "research_sources.txt")):
+        try:
+            with open(path, encoding="utf-8") as f:
+                items = [ln.strip() for ln in f
+                         if ln.strip() and not ln.strip().startswith("#")]
+            if items:
+                return items
+        except FileNotFoundError:
+            continue
+    return DEFAULT_SOURCES
+
+
+# High-signal sources for product/market research. Agents focus their few
+# searches HERE (via site: filters or by name) instead of crawling the open web.
+KEY_SOURCES = "; ".join(_load_sources())
 
 AGENTS: dict[str, AgentDefinition] = {
     "trend-scout": AgentDefinition(
@@ -31,19 +77,22 @@ AGENTS: dict[str, AgentDefinition] = {
             "category. Use first to gather a broad candidate list with evidence."
         ),
         prompt=(
-            "You are a sharp trend scout. Given a product category, use web "
-            "search to find 8-15 concrete, specific products or product types "
-            "that are emerging or gaining momentum RIGHT NOW. Prioritise recency.\n\n"
+            "You are a sharp trend scout. Given a product category, find 6-8 "
+            "concrete, specific products or product types that are emerging or "
+            "gaining momentum RIGHT NOW.\n\n"
+            "SEARCH BUDGET: do AT MOST 2 broad web searches for the whole task — "
+            "do NOT search each product separately. FOCUS those searches on these "
+            f"high-signal sources (use site: filters or their names): {KEY_SOURCES}. "
+            "Ignore generic blog/SEO pages. Lean on your own knowledge; search only "
+            "to confirm what's current.\n\n"
             "For each candidate capture: the specific product name/type, why it is "
-            "rising (the signal), and at least one cited source URL with a date. "
-            "Look across marketplaces, trend reports, social buzz, search interest, "
-            "news, and startup launches. Avoid generic categories — be specific "
-            "(e.g. 'collagen peptide coffee creamer', not 'health drinks').\n\n"
-            "Return a clean numbered list of candidates with their signals and "
-            "sources. Do not score or rank — that is another agent's job."
+            "rising (the signal), and a source if you have one. Be specific (e.g. "
+            "'collagen peptide coffee creamer', not 'health drinks').\n\n"
+            "Return a SHORT numbered list of candidates with a one-line signal each. "
+            "Do not score or rank — that is another agent's job."
         ),
         tools=WEB_TOOLS,
-        model="sonnet",
+        model="haiku",
     ),
     "market-analyst": AgentDefinition(
         description=(
@@ -64,14 +113,17 @@ AGENTS: dict[str, AgentDefinition] = {
             "  price_range     the low–high range seen across sellers\n"
             "  price_position  where it sits: budget / mid-market / premium\n"
             "  willingness     a short read on what buyers will pay & price sensitivity\n\n"
-            "Use web search to ground each estimate AND the pricing figures; cite "
-            "sources where you can. Be honest and calibrated — not everything is a "
-            "9. For each product return the five sub-scores plus a one-line "
-            "justification each, followed by the pricing block above. Do NOT "
-            "compute a final score; hand the sub-scores and pricing to the predictor."
+            "SEARCH BUDGET: do AT MOST 2 web searches for the WHOLE batch, FOCUSED "
+            "on Amazon (price points, review counts, Best Seller Rank), Google "
+            "Trends (interest momentum) and Statista (market size). Estimate "
+            "primarily from your own knowledge; do NOT search each product "
+            "separately. Be honest and calibrated — not everything is a 9. For each "
+            "product return the five sub-scores plus a SHORT one-line justification, "
+            "then the pricing block. Keep it terse. Do NOT compute a final score; "
+            "hand the sub-scores and pricing to the predictor."
         ),
         tools=WEB_TOOLS,
-        model="sonnet",
+        model="haiku",
     ),
     "audience-researcher": AgentDefinition(
         description=(
@@ -88,13 +140,13 @@ AGENTS: dict[str, AgentDefinition] = {
             "lifestyle), key needs / pain points the product solves, buying "
             "triggers, preferred channels (where they discover & buy), and price "
             "sensitivity.\n\n"
-            "Use web search to ground segments in real audience data where you can "
-            "(market reports, demographics, community discussion) and cite sources. "
-            "Note which candidate products best fit each segment. Do NOT score or "
-            "rank products — return the segments and personas for the report."
+            "SEARCH BUDGET: use AT MOST 1 web search (optional) — rely mainly on "
+            "your own knowledge. Keep each persona to a few short lines. Note which "
+            "candidate products best fit each segment. Do NOT score or rank "
+            "products — return the segments and personas for the report."
         ),
         tools=WEB_TOOLS,
-        model="sonnet",
+        model="haiku",
     ),
     "competitor-analyst": AgentDefinition(
         description=(
@@ -111,13 +163,14 @@ AGENTS: dict[str, AgentDefinition] = {
             "estimated marketing & advertising spend or intensity (and the main "
             "channels they advertise on), and notable strengths and weaknesses / "
             "gaps a new entrant could exploit.\n\n"
-            "Use web search to ground every profile and cite sources with dates. Be "
-            "calibrated — clearly label spend figures as estimates when exact data "
-            "is unavailable. End with a short read on the competitive whitespace. "
-            "Do NOT score or rank the candidate products — that is the predictor's job."
+            "SEARCH BUDGET: do AT MOST 2 web searches total — rely mainly on your "
+            "own knowledge. Keep each profile to a few short lines and clearly label "
+            "spend figures as estimates. End with a one-line read on the competitive "
+            "whitespace. Do NOT score or rank candidate products — that is the "
+            "predictor's job."
         ),
         tools=WEB_TOOLS,
-        model="sonnet",
+        model="haiku",
     ),
     "predictor": AgentDefinition(
         description=(
@@ -136,6 +189,6 @@ AGENTS: dict[str, AgentDefinition] = {
             "to pay). Return the full ranked list with pricing included."
         ),
         tools=[TOOL_SCORE],
-        model="sonnet",
+        model="haiku",
     ),
 }

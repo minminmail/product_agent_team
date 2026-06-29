@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 # Weights for the opportunity score. Tweak to change what the team rewards.
@@ -98,3 +99,49 @@ def write_results(category: str, products: list, output_dir: str | None = None) 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(record, f, indent=2, ensure_ascii=False)
     return path
+
+
+def predictions_path(category: str, output_dir: str) -> str:
+    safe = "".join(c if c.isalnum() else "_" for c in (category or "general")).strip("_").lower()
+    return os.path.join(output_dir, f"predictions_{safe or 'general'}.json")
+
+
+def parse_report_products(markdown: str) -> list:
+    """Best-effort extraction of products from the report's ranked table
+    (| Rank | Product | Score | Verdict | ... | Why |). Used as a fallback so
+    Stage 2 has a handoff file even if the model didn't call the save tool."""
+    products = []
+    for line in (markdown or "").splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 2 or not re.match(r"^\d+$", cells[0]):
+            continue  # only numbered data rows
+        name = cells[1].replace("*", "").strip()
+        if not name or name.lower() == "product":
+            continue
+        score = 0.0
+        if len(cells) >= 3:
+            m = re.search(r"[\d.]+", cells[2])
+            score = float(m.group()) if m else 0.0
+        products.append({
+            "name": name,
+            "score": score,
+            "verdict": cells[3] if len(cells) >= 4 else "",
+            "rationale": cells[-1] if len(cells) >= 5 else "",
+            "evidence": "",
+        })
+    return products
+
+
+def ensure_predictions_saved(category: str, output_dir: str, report_md: str) -> str | None:
+    """If no predictions file exists for this category, derive one from the
+    research report so supplier sourcing can proceed. Returns the path or None."""
+    path = predictions_path(category, output_dir)
+    if os.path.exists(path):
+        return path
+    products = parse_report_products(report_md)
+    if not products:
+        return None
+    return write_results(category, products, output_dir)
