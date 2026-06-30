@@ -1,0 +1,29 @@
+# Unified LiteLLM proxy — serves multiple backends at once, selected per request
+# by MODEL NAME. The app sends model "groq" / "deepseek" / "gemini" to pick a
+# backend; anything else (e.g. the auto-fallback's "claude-*") hits the "*"
+# default. Each entry only works if its API key is set in .env.
+#
+# Run:  ./run_proxy.sh   (see LITELLM_GEMINI_SETUP.md)
+# No master_key on purpose — local, auth-free (avoids "400 No connected db").
+
+model_list:
+  - model_name: groq
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: deepseek
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+  - model_name: gemini
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+  # Default catch-all (used by the credit-too-low auto-fallback): Groq.
+  - model_name: "*"
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+
+litellm_settings:
+  drop_params: true

@@ -153,7 +153,7 @@ def _build_graph(emit):
         text: list[str] = []; err = False
         async for ev in run_segment(_trend_prompt(state["category"]),
                                     state["model"], state["reports_dir"], text,
-                                    force_env=state.get("force_env")):
+                                    force_env=state.get("force_env"), only_agent="trend-scout"):
             if ev.get("type") == "error":
                 err = True
             await emit(ev)
@@ -177,7 +177,7 @@ def _build_graph(emit):
         text: list[str] = []; err = False
         async for ev in run_segment(_analyst_prompt(state["category"], state.get("candidates_text", "")),
                                     state["model"], state["reports_dir"], text,
-                                    force_env=state.get("force_env")):
+                                    force_env=state.get("force_env"), only_agent="market-analyst"):
             if ev.get("type") == "error":
                 err = True
             await emit(ev)
@@ -201,7 +201,7 @@ def _build_graph(emit):
         text: list[str] = []
         async for ev in run_segment(_audience_prompt(state["category"], state.get("candidates_text", "")),
                                     state["model"], state["reports_dir"], text,
-                                    force_env=state.get("force_env")):
+                                    force_env=state.get("force_env"), only_agent="audience-researcher"):
             await emit(ev)
         return {"audience_text": "\n".join(text)}
 
@@ -223,7 +223,7 @@ def _build_graph(emit):
         text: list[str] = []
         async for ev in run_segment(_competitor_prompt(state["category"], state.get("candidates_text", "")),
                                     state["model"], state["reports_dir"], text,
-                                    force_env=state.get("force_env")):
+                                    force_env=state.get("force_env"), only_agent="competitor-analyst"):
             await emit(ev)
         return {"competitor_text": "\n".join(text)}
 
@@ -255,16 +255,21 @@ def _build_graph(emit):
             return {"research_ok": True}
         from product_researcher.events import run_segment
         text: list[str] = []
+        err_seen = False
         async for ev in run_segment(
             _predictor_prompt(state["category"], state["top"], state["reports_dir"],
                               state.get("analysis_text", ""), state.get("audience_text", ""),
                               state.get("competitor_text", "")),
             state["model"], state["reports_dir"], text,
-            force_env=state.get("force_env"),
+            force_env=state.get("force_env"), only_agent="predictor",
         ):
+            if ev.get("type") == "error":
+                err_seen = True   # an error occurred → this stage FAILED, not finished
             await emit(ev)
         report = "".join(text).strip()
-        ok = bool(report)
+        # Only a success if we got a report AND no error was raised. The error
+        # event (already emitted by run_segment) marks the agents failed.
+        ok = bool(report) and not err_seen
         if ok:
             # Safeguard: if the model didn't call save_results, derive the
             # predictions file from the report so Stage 2 can find it.
