@@ -74,7 +74,15 @@ Be concrete and evidence-driven. Do not fabricate sources.
 `supplier_sourcer` package — which reads the predictions_*.json you save here.)"""
 
 
-def _make_options(model: str, output_dir: str, env: dict | None = None):
+_DEFAULT_TOOLS = ["Task", "Agent", "WebSearch", TOOL_SCORE, TOOL_SAVE]
+
+
+def _make_options(model: str, output_dir: str, env: dict | None = None,
+                  agents: dict | None = None, allowed_tools: list | None = None,
+                  mcp_servers: dict | None = None):
+    """Build options. agents/allowed_tools/mcp_servers can be narrowed per call
+    to cut request tokens — e.g. a single-subagent node need not ship all five
+    agent definitions and every tool schema."""
     from claude_agent_sdk import ClaudeAgentOptions
 
     return ClaudeAgentOptions(
@@ -84,15 +92,9 @@ def _make_options(model: str, output_dir: str, env: dict | None = None):
             "evidence-driven, and you delegate to specialist subagents rather "
             "than doing everything yourself."
         ),
-        agents=AGENTS,
-        mcp_servers={"research-tools": research_tools_server},
-        allowed_tools=[
-            "Task",  # subagent dispatch
-            "Agent",
-            "WebSearch",   # WebFetch omitted to keep input tokens (cost) down
-            TOOL_SCORE,
-            TOOL_SAVE,
-        ],
+        agents=AGENTS if agents is None else agents,
+        mcp_servers={"research-tools": research_tools_server} if mcp_servers is None else mcp_servers,
+        allowed_tools=_DEFAULT_TOOLS if allowed_tools is None else allowed_tools,
         # Non-interactive: never block waiting for a human to approve a tool.
         permission_mode="bypassPermissions",
         max_turns=30,
@@ -101,6 +103,18 @@ def _make_options(model: str, output_dir: str, env: dict | None = None):
         # re-point this run at the LiteLLM proxy → Gemini.
         env=env or {},
     )
+
+
+def _agent_options(only_agent: str | None):
+    """Minimal (agents, allowed_tools, mcp_servers) for a single-subagent node,
+    or (None, None, None) to use the full defaults. Shipping just the one agent
+    + only the tools it uses dramatically shrinks each request."""
+    if not only_agent or only_agent not in AGENTS:
+        return None, None, None
+    sub = {only_agent: AGENTS[only_agent]}
+    if only_agent == "predictor":  # uses the scoring/save MCP tools, no web
+        return sub, ["Task", "Agent", TOOL_SCORE, TOOL_SAVE], {"research-tools": research_tools_server}
+    return sub, ["Task", "Agent", "WebSearch"], {}   # research agents: web only
 
 
 def _read_dotenv_value(key: str) -> str | None:
@@ -130,22 +144,20 @@ def _env(key: str, default: str | None = None) -> str | None:
     return os.getenv(key) or _read_dotenv_value(key) or default
 
 
-def _fallback_env() -> dict | None:
-    """Env that re-points a run at the LiteLLM proxy (→ Groq or Gemini), or None
-    if no fallback is configured. Enabled when GROQ_API_KEY or GEMINI_API_KEY is
-    available (checked in the process env AND the .env file)."""
-    if not (_env("GROQ_API_KEY") or _env("GEMINI_API_KEY")):
-        return None
-    base = (_env("GEMINI_FALLBACK_BASE_URL") or "http://localhost:4000").strip()
-    # Must equal the proxy's master_key. Default to sk-local-test (same default
-    # the proxy/run script uses). Do NOT fall back to the real ANTHROPIC_API_KEY
-    # — that would mismatch the proxy and trigger "400 No connected db".
+def _proxy_env() -> dict:
+    """Env that routes a run through the local LiteLLM proxy. ANTHROPIC_AUTH_TOKEN
+    makes the CLI send the key as `Authorization: Bearer` (what the proxy reads)."""
+    base = (_env("PROXY_BASE_URL") or _env("GEMINI_FALLBACK_BASE_URL") or "http://localhost:4000").strip()
     key = (_env("LITELLM_MASTER_KEY") or "sk-local-test").strip()
-    # ANTHROPIC_AUTH_TOKEN makes the CLI send the key as `Authorization: Bearer`,
-    # which is what LiteLLM's master-key auth reads. With only ANTHROPIC_API_KEY
-    # the CLI sends `x-api-key`, LiteLLM sees no Bearer token, tries a DB lookup,
-    # and returns the misleading "No connected db".
     return {"ANTHROPIC_BASE_URL": base, "ANTHROPIC_API_KEY": key, "ANTHROPIC_AUTH_TOKEN": key}
+
+
+def _fallback_env() -> dict | None:
+    """Proxy routing for the credit-too-low auto-fallback, or None if no proxy
+    provider is configured (GROQ / DEEPSEEK / GEMINI key in env or .env)."""
+    if not (_env("GROQ_API_KEY") or _env("DEEPSEEK_API_KEY") or _env("GEMINI_API_KEY")):
+        return None
+    return _proxy_env()
 
 
 def _proxy_reachable(base_url: str, timeout: float = 2.0) -> bool:
@@ -351,9 +363,10 @@ async def run_stream(
             return
 
 
-async def _segment_once(prompt, model, output_dir, env, collect):
+async def _segment_once(prompt, model, output_dir, env, collect, only_agent=None):
     """One segment attempt. Yields (event, is_fatal) tuples."""
-    options = _make_options(model, output_dir, env=env)
+    ag, tools, mcp = _agent_options(only_agent)
+    options = _make_options(model, output_dir, env=env, agents=ag, allowed_tools=tools, mcp_servers=mcp)
     tool_use_owner: dict[str, str] = {}
     seg_error_sent = False
     try:
@@ -403,12 +416,14 @@ async def run_segment(
     output_dir: str,
     collect: list[str] | None = None,
     force_env: dict | None = None,
+    only_agent: str | None = None,
 ) -> AsyncIterator[dict]:
     """Run ONE focused segment (a single lead prompt) and yield UI events,
     without the pipeline-level 'start'/'result' frames. On a fatal API error
     (e.g. credit balance too low) it retries via the LiteLLM proxy.
 
     force_env: route this segment through the proxy from the start (Groq button).
+    only_agent: ship just this sub-agent's definition + its tools (smaller request).
     """
     output_dir = os.path.abspath(output_dir)
     if force_env is not None:
@@ -417,7 +432,7 @@ async def run_segment(
                    "message": f"Proxy not reachable at {force_env.get('ANTHROPIC_BASE_URL')} — "
                               "start it with ./run_proxy.sh, then re-run."}
             return
-        async for ev, _fatal in _segment_once(prompt, model, output_dir, force_env, collect):
+        async for ev, _fatal in _segment_once(prompt, model, output_dir, force_env, collect, only_agent):
             yield ev
         return
     fb = _fallback_env()
@@ -435,7 +450,7 @@ async def run_segment(
                    "message": "Anthropic API unavailable (e.g. credit balance too low) — "
                               "retrying via the LiteLLM proxy → Gemini."}
         retry = False
-        async for ev, fatal in _segment_once(prompt, model, output_dir, env, collect):
+        async for ev, fatal in _segment_once(prompt, model, output_dir, env, collect, only_agent):
             if fatal and i == 0 and fb:
                 retry = True
                 break

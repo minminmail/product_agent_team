@@ -62,6 +62,23 @@ _GROQ_HINT = ("Run on Groq needs GROQ_API_KEY in .env and the proxy running "
               "(./run_proxy.sh). See LITELLM_GEMINI_SETUP.md.")
 
 
+def _provider_setup(provider: str, model: str):
+    """Map the selected run provider to (force_env, model, error).
+
+    - anthropic → direct Anthropic (no proxy).
+    - groq / deepseek → routed through the local proxy; the model name selects
+      the backend in litellm_proxy.yaml.
+    """
+    from .events import _proxy_env, _env  # SDK-free helpers
+    keymap = {"groq": "GROQ_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}
+    if provider in keymap:
+        if not _env(keymap[provider]):
+            return None, model, (f"{provider.capitalize()} run needs {keymap[provider]} in .env "
+                                 f"and the proxy running (./run_proxy.sh).")
+        return _proxy_env(), provider, None   # model name routes the proxy
+    return None, model, None   # anthropic (direct)
+
+
 # --- Auth helpers & endpoints ------------------------------------------------
 
 class Credentials(BaseModel):
@@ -291,21 +308,15 @@ async def research(
                 async for ev in run_stream_mock(category, top, REPORTS_DIR, model):
                     yield _sse(ev)
             else:
-                from .events import run_stream, _fallback_env
-                force_env = None
-                if provider == "groq":
-                    force_env = _fallback_env()
-                    if not force_env:
-                        yield _sse({"type": "error", "message": _GROQ_HINT})
-                        return
-                elif not os.getenv("ANTHROPIC_API_KEY"):
-                    yield _sse({
-                        "type": "error",
-                        "message": "ANTHROPIC_API_KEY is not set. Tip: use 'Groq' (free) "
-                                   "or 'Mock' mode instead.",
-                    })
-                    return
-                async for ev in run_stream(category, top, REPORTS_DIR, model, force_env=force_env):
+                from .events import run_stream
+                force_env, run_model, perr = _provider_setup(provider, model)
+                if perr:
+                    yield _sse({"type": "error", "message": perr}); return
+                if provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
+                    yield _sse({"type": "error",
+                                "message": "ANTHROPIC_API_KEY is not set. Tip: use a Free "
+                                           "provider (Groq / Mock) instead."}); return
+                async for ev in run_stream(category, top, REPORTS_DIR, run_model, force_env=force_env):
                     yield _sse(ev)
         except Exception as exc:  # never leave the stream hanging
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
@@ -344,21 +355,15 @@ async def sourcing(
                 async for ev in source_mock(category, REPORTS_DIR, REPORTS_DIR, model, top, per):
                     yield _sse(ev)
             else:
-                from supplier_sourcer.events import run_stream as source_stream, _fallback_env
-                force_env = None
-                if provider == "groq":
-                    force_env = _fallback_env()
-                    if not force_env:
-                        yield _sse({"type": "error", "message": _GROQ_HINT})
-                        return
-                elif not os.getenv("ANTHROPIC_API_KEY"):
-                    yield _sse({
-                        "type": "error",
-                        "message": "ANTHROPIC_API_KEY is not set. Tip: use 'Groq' (free) "
-                                   "or 'Mock' mode instead.",
-                    })
-                    return
-                async for ev in source_stream(category, REPORTS_DIR, REPORTS_DIR, model, top, per, force_env=force_env):
+                from supplier_sourcer.events import run_stream as source_stream
+                force_env, run_model, perr = _provider_setup(provider, model)
+                if perr:
+                    yield _sse({"type": "error", "message": perr}); return
+                if provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
+                    yield _sse({"type": "error",
+                                "message": "ANTHROPIC_API_KEY is not set. Tip: use a Free "
+                                           "provider (Groq / Mock) instead."}); return
+                async for ev in source_stream(category, REPORTS_DIR, REPORTS_DIR, run_model, top, per, force_env=force_env):
                     yield _sse(ev)
         except Exception as exc:
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
@@ -392,19 +397,15 @@ async def pipeline(
                 yield _sse({"type": "error", "message": gate})
                 return
             force_env = None
-            if not mock and provider == "groq":
-                from .events import _fallback_env
-                force_env = _fallback_env()
-                if not force_env:
-                    yield _sse({"type": "error", "message": _GROQ_HINT})
-                    return
-            elif not mock and not os.getenv("ANTHROPIC_API_KEY"):
-                yield _sse({
-                    "type": "error",
-                    "message": "ANTHROPIC_API_KEY is not set. Tip: use 'Groq' (free) "
-                               "or 'Mock' mode instead.",
-                })
-                return
+            run_model = model
+            if not mock:
+                force_env, run_model, perr = _provider_setup(provider, model)
+                if perr:
+                    yield _sse({"type": "error", "message": perr}); return
+                if provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
+                    yield _sse({"type": "error",
+                                "message": "ANTHROPIC_API_KEY is not set. Tip: use a Free "
+                                           "provider (Groq / Mock) instead."}); return
             # Engine selection: explicit ?engine=langgraph, else USE_LANGGRAPH env.
             use_langgraph = (engine.strip().lower() == "langgraph") or (
                 engine == "" and
@@ -418,7 +419,7 @@ async def pipeline(
                     return
             else:
                 from orchestrator.pipeline import run_pipeline
-            async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, model, mock, force_env=force_env):
+            async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, run_model, mock, force_env=force_env):
                 yield _sse(ev)
         except Exception as exc:
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})

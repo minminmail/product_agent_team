@@ -134,18 +134,18 @@ def _env(key: str, default: str | None = None) -> str | None:
     return os.getenv(key) or _read_dotenv_value(key) or default
 
 
-def _fallback_env() -> dict | None:
-    """Env that re-points a run at the LiteLLM proxy (→ Groq or Gemini), or None
-    if no fallback is configured (checked in the process env AND .env)."""
-    if not (_env("GROQ_API_KEY") or _env("GEMINI_API_KEY")):
-        return None
-    base = (_env("GEMINI_FALLBACK_BASE_URL") or "http://localhost:4000").strip()
-    # Must equal the proxy's master_key (default sk-local-test). Never the real
-    # ANTHROPIC_API_KEY — a mismatch triggers "400 No connected db".
-    # ANTHROPIC_AUTH_TOKEN → CLI sends `Authorization: Bearer` (what LiteLLM's
-    # master-key auth reads); ANTHROPIC_API_KEY alone sends only `x-api-key`.
+def _proxy_env() -> dict:
+    """Route a run through the local LiteLLM proxy (Bearer auth via AUTH_TOKEN)."""
+    base = (_env("PROXY_BASE_URL") or _env("GEMINI_FALLBACK_BASE_URL") or "http://localhost:4000").strip()
     key = (_env("LITELLM_MASTER_KEY") or "sk-local-test").strip()
     return {"ANTHROPIC_BASE_URL": base, "ANTHROPIC_API_KEY": key, "ANTHROPIC_AUTH_TOKEN": key}
+
+
+def _fallback_env() -> dict | None:
+    """Proxy routing for the auto-fallback, or None if no proxy provider is set."""
+    if not (_env("GROQ_API_KEY") or _env("DEEPSEEK_API_KEY") or _env("GEMINI_API_KEY")):
+        return None
+    return _proxy_env()
 
 
 def _proxy_reachable(base_url: str, timeout: float = 2.0) -> bool:

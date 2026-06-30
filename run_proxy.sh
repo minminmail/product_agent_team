@@ -7,19 +7,21 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 # Load provider keys from .env if not already in the env.
 read_env () { grep -E "^$1=" "$DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- ; }
 if [ -f "$DIR/.env" ]; then
-  [ -z "${GROQ_API_KEY:-}" ]   && GROQ_API_KEY=$(read_env GROQ_API_KEY)     || true
-  [ -z "${GEMINI_API_KEY:-}" ] && GEMINI_API_KEY=$(read_env GEMINI_API_KEY) || true
-  export GROQ_API_KEY GEMINI_API_KEY
+  [ -z "${GROQ_API_KEY:-}" ]     && GROQ_API_KEY=$(read_env GROQ_API_KEY)         || true
+  [ -z "${DEEPSEEK_API_KEY:-}" ] && DEEPSEEK_API_KEY=$(read_env DEEPSEEK_API_KEY) || true
+  [ -z "${GEMINI_API_KEY:-}" ]   && GEMINI_API_KEY=$(read_env GEMINI_API_KEY)     || true
+  export GROQ_API_KEY DEEPSEEK_API_KEY GEMINI_API_KEY
 fi
 
-# Pick the backend: Groq if a Groq key is present (reliable; standard keys),
-# otherwise Gemini. Groq sidesteps Google's AQ-key migration issues.
-if [ -n "${GROQ_API_KEY:-}" ]; then
-  CONFIG="$DIR/litellm_groq.yaml"; PROVIDER="Groq · llama-3.3-70b-versatile"
-elif [ -n "${GEMINI_API_KEY:-}" ]; then
-  CONFIG="$DIR/litellm_gemini.yaml"; PROVIDER="Gemini · gemini-2.0-flash"
-else
-  echo "ERROR: set GROQ_API_KEY (https://console.groq.com/keys) or GEMINI_API_KEY in .env" >&2
+# One unified config serves every backend whose key is set; the app selects one
+# per request by model name (groq / deepseek / gemini).
+CONFIG="$DIR/litellm_proxy.yaml"
+avail=""
+[ -n "${GROQ_API_KEY:-}" ]     && avail="$avail Groq"
+[ -n "${DEEPSEEK_API_KEY:-}" ] && avail="$avail DeepSeek"
+[ -n "${GEMINI_API_KEY:-}" ]   && avail="$avail Gemini"
+if [ -z "$avail" ]; then
+  echo "ERROR: set at least one of GROQ_API_KEY / DEEPSEEK_API_KEY / GEMINI_API_KEY in .env" >&2
   exit 1
 fi
 
@@ -31,7 +33,7 @@ unset LITELLM_MASTER_KEY
 PORT="${PORT:-4000}"
 
 echo "Starting LiteLLM proxy on http://localhost:${PORT}  (local, NO auth)"
-echo "  → backend: ${PROVIDER}"
+echo "  → backends available:${avail}  (selected per request: groq / deepseek / gemini)"
 echo "  Is it up?   curl http://localhost:${PORT}/health/liveliness"
 echo
 

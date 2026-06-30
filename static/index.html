@@ -236,12 +236,23 @@
           </div>
         </div>
         <label style="margin-top:4px">Run mode</label>
-        <div class="toggle" id="modeToggle">
-          <button type="button" class="seg active" id="seg-live">⚡ Live</button>
-          <button type="button" class="seg" id="seg-groq">🟢 Groq (free)</button>
-          <button type="button" class="seg" id="seg-mock">🧪 Mock</button>
+        <div class="row" style="margin-bottom:6px">
+          <div style="flex:1">
+            <select id="paidSelect" title="Paid providers">
+              <option value="" disabled selected>💳 Paid…</option>
+              <option value="anthropic">Anthropic API</option>
+              <option value="deepseek">DeepSeek API</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <select id="freeSelect" title="Free providers">
+              <option value="" disabled selected>🆓 Free…</option>
+              <option value="groq">Groq (free)</option>
+              <option value="mock">Mock</option>
+            </select>
+          </div>
         </div>
-        <div class="mode-hint" id="modeHint">Live — uses your API key &amp; credits for real research.</div>
+        <div class="mode-hint" id="modeHint">Anthropic API — uses your key &amp; credits for real research.</div>
         <label style="margin-top:4px">Pipeline engine</label>
         <div class="toggle" id="engineToggle">
           <button type="button" class="seg" id="eng-standard">⚙ Standard</button>
@@ -491,22 +502,26 @@ function toggleLog(){
 }
 function clearLog(){ logLines.length = 0; $("#logMeta").textContent = ""; renderLog(); }
 
-// Run mode: "live" (Anthropic), "groq" (free, via proxy), or "mock" (offline).
-let runMode = "live";
+// Run mode: anthropic | deepseek (paid) · groq (free) | mock (offline).
+let runMode = "anthropic";
+const MODE_HINTS = {
+  anthropic: "Anthropic API — uses your key &amp; credits for real research.",
+  deepseek:  "DeepSeek API (paid) — routes via the local proxy → DeepSeek. Needs <code>./run_proxy.sh</code> running.",
+  groq:      "Groq (free) — routes via the local proxy → Groq. Needs <code>./run_proxy.sh</code> running.",
+  mock:      "Mock — fully offline, no API key or credits used.",
+};
+const PAID_MODES = ["anthropic","deepseek"], FREE_MODES = ["groq","mock"];
 function setRunMode(mode){
   runMode = mode;
   mockMode = (mode === "mock");          // kept for existing checks
-  $("#seg-live").classList.toggle("active", mode === "live");
-  $("#seg-groq").classList.toggle("active", mode === "groq");
-  $("#seg-mock").classList.toggle("active", mode === "mock");
-  $("#modeHint").innerHTML =
-    mode === "mock" ? "Mock — fully offline, no API key or credits used." :
-    mode === "groq" ? "Groq (free) — routes this run through the local proxy → Groq. Needs <code>./run_proxy.sh</code> running." :
-    "Live — uses your Anthropic API key &amp; credits for real research.";
+  // Keep the two dropdowns mutually exclusive: the inactive one shows its placeholder.
+  $("#paidSelect").value = PAID_MODES.includes(mode) ? mode : "";
+  $("#freeSelect").value = FREE_MODES.includes(mode) ? mode : "";
+  $("#modeHint").innerHTML = MODE_HINTS[mode] || MODE_HINTS.anthropic;
 }
-$("#seg-live").addEventListener("click", ()=>{ if(!running) setRunMode("live"); });
-$("#seg-groq").addEventListener("click", ()=>{ if(!running) setRunMode("groq"); });
-$("#seg-mock").addEventListener("click", ()=>{ if(!running) setRunMode("mock"); });
+$("#paidSelect").addEventListener("change", e=>{ if(running){ e.target.value = PAID_MODES.includes(runMode)?runMode:""; return; } if(e.target.value) setRunMode(e.target.value); });
+$("#freeSelect").addEventListener("change", e=>{ if(running){ e.target.value = FREE_MODES.includes(runMode)?runMode:""; return; } if(e.target.value) setRunMode(e.target.value); });
+setRunMode("anthropic");
 
 let engine="langgraph";   // default: drives every agent as an explicit node
 function setEngine(e){
@@ -718,8 +733,9 @@ async function checkHealth(){
 function launch(kind){
   if(running) return;
   const cat=$("#cat").value.trim(); if(cat.length<2){$("#cat").focus();return;}
-  const top=$("#top").value||10, model=$("#model").value, mock=mockMode;
-  const provider = (runMode==="groq") ? "groq" : "anthropic";
+  const top=$("#top").value||10, model=$("#model").value, mock=(runMode==="mock");
+  mockMode = mock;
+  const provider = mock ? "anthropic" : runMode;   // anthropic | deepseek | groq
   running=true; reportBuf=""; clearAgents(); activeSub=null; clearStatuses(); clearGraph();
   runKind=kind; researchPhase=(kind!=="sourcing"); hadError=false; succeeded=false; failMessages=[]; hideFailPopup();
   Object.keys(agentOutputs).forEach(k=>delete agentOutputs[k]); researchReport=""; sourcingReport=""; hideOutputPopup();
@@ -728,9 +744,11 @@ function launch(kind){
     addLog("mock","MOCK",`Using mock model — fully offline, no API calls (${kind})`);
   } else if(runMode==="groq"){
     addLog("api","GROQ",`Running FREE via the local proxy → Groq (${kind})`);
+  } else if(runMode==="deepseek"){
+    addLog("api","DEEPSEEK",`Running via the local proxy → DeepSeek (paid) (${kind})`);
   } else {
     const tgt = apiCustom ? `${apiBaseUrl} (custom endpoint)` : `${apiBaseUrl} (Anthropic)`;
-    addLog("api","LIVE",`Calling LLM API: ${tgt} · model ${model}`+(kind==="pipeline"?` · ${engine} engine`:""));
+    addLog("api","ANTHROPIC",`Calling Anthropic API: ${tgt} · model ${model}`+(kind==="pipeline"?` · ${engine} engine`:""));
   }
   if(kind==="pipeline"){ setStatus("orc","working"); setStatus("s1","waiting"); setStatus("s2","waiting"); }
   else if(kind==="sourcing"){ setStatus("s2","working"); }
@@ -746,15 +764,15 @@ function launch(kind){
   let url;
   if(kind==="pipeline"){
     const engLabel = engine==="langgraph" ? "LangGraph" : "Standard";
-    const tag = mock?" · <b>MOCK</b>":(provider==="groq"?" · <b>GROQ</b>":"");
+    const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
     addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>${engLabel}</b> engine${tag}`);
     url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&engine=${engine}&provider=${provider}&mock=${mock}`;
   } else if(kind==="sourcing"){
-    const tag = mock?" · <b>MOCK</b>":(provider==="groq"?" · <b>GROQ</b>":"");
+    const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
     addEv("","🏭",`Sourcing suppliers for <b>${esc(cat)}</b> · ${esc(model)}${tag}`);
     url=`/api/sourcing?category=${encodeURIComponent(cat)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}`;
   } else {
-    const tag = mock?" · <b>MOCK</b>":(provider==="groq"?" · <b>GROQ</b>":"");
+    const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
     addEv("","▶",`Researching <b>${esc(cat)}</b> · top ${esc(top)} · ${esc(model)}${tag}`);
     url=`/api/research?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}`;
   }
@@ -832,6 +850,9 @@ function handle(ev){
         +(ev.cost_usd!=null?` · $${Number(ev.cost_usd).toFixed(4)}`:""));
       if(researchPhase) setAgent("lead", ev.is_error ? "failed" : "done");
       if(activeSub) setAgent(activeSub, ev.is_error ? "failed" : "done");
+      // On an error result, turn the stage persona (Maria/Javier) RED too,
+      // never leave a green "finished" pill for a run that errored.
+      if(ev.is_error) setStatus(researchPhase ? "s1" : "s2", "failed");
       break;
     case "error": {
       activeSub=null; hadError=true; failMessages.push(ev.message || "Unknown error.");
