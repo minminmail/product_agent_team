@@ -153,17 +153,17 @@ async def run_stream_mock(
     sourced = []
     for p in products:
         yield {"type": "tool", "name": "WebSearch", "agent": "subagent",
-               "summary": f'suppliers: "{p["name"]}"'}
+               "owner": "sourcing-scout", "summary": f'suppliers: "{p["name"]}"'}
         await asyncio.sleep(0 if fast else 0.06)
         suppliers = _mock_suppliers_for(p["name"], cat)
         for s in suppliers:
             yield {"type": "tool", "name": "mcp__sourcing-tools__score_supplier",
-                   "agent": "subagent",
+                   "agent": "subagent", "owner": "sourcing-scout",
                    "summary": f'supplier: {s["name"]} = {s["score"]}'}
             await asyncio.sleep(0 if fast else 0.03)
         sourced.append({"product": p["name"], "score": p.get("score"),
                         "suppliers": suppliers})
-    yield {"type": "text", "agent": "subagent",
+    yield {"type": "text", "agent": "subagent", "owner": "sourcing-scout",
            "text": f"Shortlisted suppliers for {len(sourced)} products."}
     await pause()
 
