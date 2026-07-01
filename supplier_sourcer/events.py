@@ -233,14 +233,18 @@ async def _attempt(prompt, model, output_dir, env):
         async for message in query(prompt=prompt, options=options):
             if isinstance(message, AssistantMessage):
                 agent = "lead" if not message.parent_tool_use_id else "subagent"
+                # Which subagent produced this message — resolved from the Task
+                # tool-use that spawned it, so the UI attributes output to the
+                # right agent (matches the product_researcher engine).
+                owner = tool_use_owner.get(message.parent_tool_use_id) if message.parent_tool_use_id else None
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         if block.text.strip():
                             if agent == "lead":
                                 report_parts.append(block.text)
-                            yield {"type": "text", "agent": agent, "text": block.text}, False
+                            yield {"type": "text", "agent": agent, "owner": owner, "text": block.text}, False
                     elif isinstance(block, ThinkingBlock):
-                        yield {"type": "thinking", "agent": agent}, False
+                        yield {"type": "thinking", "agent": agent, "owner": owner}, False
                     elif isinstance(block, ToolUseBlock):
                         name = block.name
                         tin = block.input if isinstance(block.input, dict) else {}
@@ -252,7 +256,7 @@ async def _attempt(prompt, model, output_dir, env):
                                    "task": _short(tin.get("description") or tin.get("prompt", ""), 200)}, False
                         else:
                             tool_use_owner[block.id] = name
-                            yield {"type": "tool", "name": name, "agent": agent,
+                            yield {"type": "tool", "name": name, "agent": agent, "owner": owner,
                                    "summary": _tool_summary(name, tin)}, False
             elif isinstance(message, ResultMessage):
                 report = "".join(report_parts).strip() or (getattr(message, "result", "") or "").strip()

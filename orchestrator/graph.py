@@ -150,9 +150,13 @@ def _build_graph(emit):
             cands = mock_candidates(state["category"])
             for name, _sig in cands:
                 await emit({"type": "tool", "name": "WebSearch", "agent": "subagent",
-                            "summary": f'search: "{name}"'})
-            await emit({"type": "text", "agent": "subagent",
-                        "text": f"Found {len(cands)} emerging candidates with rising signals."})
+                            "owner": "trend-scout", "summary": f'search: "{name}"'})
+            # Emit the actual candidate list as trend-scout's output, so its card
+            # / PDF shows the report rather than only the activity log.
+            ts_lines = [f"## Emerging candidates in {state['category']}", ""]
+            ts_lines += [f"{i}. **{name}** — {sig}" for i, (name, sig) in enumerate(cands, 1)]
+            await emit({"type": "text", "agent": "subagent", "owner": "trend-scout",
+                        "text": "\n".join(ts_lines)})
             return {"candidates": cands}
         from product_researcher.events import run_segment
         text: list[str] = []; err = False
@@ -175,8 +179,21 @@ def _build_graph(emit):
             analysed = mock_analyse(state["candidates"])
             for name, *_ in analysed:
                 await emit({"type": "tool", "name": "WebSearch", "agent": "subagent",
-                            "summary": f'sizing: "{name}"'})
-            await emit({"type": "text", "agent": "subagent", "text": "Scored all candidates."})
+                            "owner": "market-analyst", "summary": f'sizing: "{name}"'})
+            # Emit the actual market analysis (per-product sub-scores + pricing) as
+            # market-analyst's output so its card / PDF is the report, not just the log.
+            ma_lines = [
+                "## Market analysis — per-product sub-scores & pricing", "",
+                "| Product | Demand | Growth | Margin | Competition | Feasibility | Typical price | Position |",
+                "|---------|------:|------:|------:|-----------:|-----------:|---------------|----------|",
+            ]
+            for name, _sig, sub, price in analysed:
+                ma_lines.append(
+                    f"| {name} | {sub.get('demand','—')} | {sub.get('growth','—')} | "
+                    f"{sub.get('margin','—')} | {sub.get('competition','—')} | {sub.get('feasibility','—')} | "
+                    f"{price.get('typical_price','—')} | {price.get('price_position','—')} |")
+            await emit({"type": "text", "agent": "subagent", "owner": "market-analyst",
+                        "text": "\n".join(ma_lines)})
             return {"analysed": analysed}
         from product_researcher.events import run_segment
         text: list[str] = []; err = False

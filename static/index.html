@@ -115,7 +115,12 @@
   .outpop{position:fixed;z-index:9999;background:var(--panel2);border:1px solid var(--accent);
        border-radius:10px;padding:12px 14px;box-shadow:0 10px 34px rgba(0,0,0,.6);font-size:13px;color:var(--text);
        max-height:62vh;overflow:auto}
-  .outpop-h{font-weight:700;color:var(--accent);margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .outpop-h{font-weight:700;color:var(--accent);margin-bottom:8px;font-size:11px;text-transform:uppercase;
+    letter-spacing:.05em;display:flex;align-items:center;gap:10px}
+  .outpop-dl{margin-left:auto;font-family:inherit;font-size:9px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.04em;padding:2px 9px;border-radius:8px;border:1px solid var(--accent);background:transparent;
+    color:var(--accent);cursor:pointer;white-space:nowrap;width:auto;flex:none}
+  .outpop-dl:hover{background:var(--accent);color:#06131f}
   .outpop-body{line-height:1.5;word-break:break-word}
   .outpop-body pre{white-space:pre-wrap}
   .outpop-body table{border-collapse:collapse} .outpop-body th,.outpop-body td{border:1px solid var(--border);padding:3px 7px}
@@ -698,35 +703,40 @@ const _stLabel = s => s==="active" ? "working" : s==="done" ? "done" : s==="fail
 const _stCls   = s => s==="active" ? "working" : s==="done" ? "done" : s==="failed" ? "failed" : "";
 function _agentTitle(id){
   const p=AGENT_PEOPLE[id];
-  return (p ? `${p.name} · ${p.role}` : (CHIP_LABEL[id]||id).replace(/^\S+\s/,"")) + " · activity";
+  return (p ? `${p.name} · ${p.role}` : (CHIP_LABEL[id]||id).replace(/^\S+\s/,"")) + " · output";
 }
-function _agentCardHtml(id){
-  const p=AGENT_PEOPLE[id];
-  const who = p ? `${esc(p.name)} · ${esc(p.role)}` : esc(CHIP_LABEL[id]||id);
-  const s = agentState[id];
-  const acts=(agentActivity[id]||[]);
-  const actHtml = acts.length
-    ? `<ul class="teamacts">`+acts.map(a=>`<li>${a.ic} ${esc(a.t)}</li>`).join("")+`</ul>`
-    : `<div class="teammuted">No delegation or tool calls logged.</div>`;
+// A specialist's output view, as Markdown: its captured report/output followed
+// by its tool-call activity log. Markdown so it renders richly on screen and
+// exports cleanly to PDF (tables, headings, etc.).
+function _soloAgentMd(id){
+  const s=agentState[id];
+  const stTxt = s==="active"?"working":s==="done"?"done":s==="failed"?"failed":"not started";
   const out=(agentOutputs[id]||"").trim();
-  const outHtml = out ? `<div class="teamout">${esc(out.slice(0,700))}${out.length>700?" …":""}</div>` : "";
-  return `<div class="teamcard"><div class="teamcard-h"><b>${who}</b>`+
-    `<span class="teamstate ${_stCls(s)}">${_stLabel(s)}</span></div>${actHtml}${outHtml}</div>`;
-}
-function _soloAgentHtml(id){
-  const intro = agentState[id]
-    ? `The task this specialist was delegated and the tool calls it made:`
-    : `This specialist hasn't run yet — run research to see its activity here.`;
-  return `<div class="teamintro">${intro}</div>${_agentCardHtml(id)}`;
+  const acts=(agentActivity[id]||[]);
+  let md = `**Status:** ${stTxt}\n\n`;
+  md += out ? out
+            : (s ? "_This agent produced no separate report text — see its activity below._"
+                 : "_This agent hasn't run yet. Run the pipeline to see its output here._");
+  if(acts.length){
+    md += "\n\n---\n\n**Activity log**\n\n" + acts.map(a=>`- ${a.ic} ${a.t}`).join("\n");
+  }
+  return md;
 }
 function _outputFor(pill){
   const id=(pill.dataset && pill.dataset.out) || pill.id || "";
-  // Chip specialists (trend-scout, market-analyst, sourcing-scout, lead) → own card.
-  if(id.indexOf("cs-")===0){ const a=id.slice(3); return {title:_agentTitle(a), html:_soloAgentHtml(a)}; }
+  // Chip specialists (trend-scout, market-analyst, sourcing-scout, lead) → report + activity.
+  if(id.indexOf("cs-")===0){
+    const a=id.slice(3);
+    // sourcing-scout's deliverable is the ranked supplier shortlist — show that
+    // report (not just its tool-call log) when it's available.
+    if(a==="sourcing-scout" && (sourcingReport||"").trim())
+      return {title:"sourcing-scout · supplier shortlist", md:sourcingReport.trim()};
+    return {title:_agentTitle(a), md:_soloAgentMd(a)};
+  }
   const key=id.slice(3);
   if(key==="s1") return {title:"Maria — Product Researcher · report", md:(researchReport||reportBuf||"").trim()};
-  // Named specialists (Heidi/Yangsi/Jose) → their own activity + output card.
-  if(PERSON_AGENT[key]) return {title:_agentTitle(PERSON_AGENT[key]), html:_soloAgentHtml(PERSON_AGENT[key])};
+  // Named specialists (Heidi/Yangsi/Jose) → their report + activity.
+  if(PERSON_AGENT[key]) return {title:_agentTitle(PERSON_AGENT[key]), md:_soloAgentMd(PERSON_AGENT[key])};
   if(key==="s2") return {title:"Supplier sourcing · Javier", md:(sourcingReport||"").trim()};
   if(key==="orc") return {title:"Full pipeline · Amanda", md:((researchReport+"\n\n"+sourcingReport)||reportBuf).trim()};
   return {title:"Product research · Maria", md:(researchReport||reportBuf||"").trim()};
@@ -734,14 +744,37 @@ function _outputFor(pill){
 function showOutputPopup(anchor){
   const p=ensureOutPop();
   const {title, md, html} = _outputFor(anchor);
+  const hasMd = md!=null && md.trim()!=="";
   const bodyHtml = (html!=null)
     ? html
-    : (md
+    : (hasMd
       ? (window.marked ? marked.parse(md) : `<pre>${esc(md)}</pre>`)
       : `<div style="color:var(--muted)">No output captured for this step — it may be summarized in the final report on the right.</div>`);
-  p.innerHTML = `<div class="outpop-h">▦ ${esc(title)} — output</div>`+
+  p.innerHTML = `<div class="outpop-h"><span>▦ ${esc(title)} — output</span>`+
+    `<button type="button" class="outpop-dl" title="Download this report as PDF">⬇ PDF</button></div>`+
     `<div class="outpop-body">${bodyHtml}</div>`+
     `<div class="outpop-x">Click anywhere to dismiss</div>`;
+  // Download button → PDF of whatever this popup is showing. Markdown reports
+  // render as rich HTML; activity cards render as preformatted text. Falls back
+  // to a .md/.txt file if the PDF library couldn't load.
+  const dlBtn=p.querySelector(".outpop-dl");
+  let dlText, dlName, dlType, pdfBody;
+  if(hasMd){
+    dlText=md.trim(); dlName=slug(title)+".md"; dlType="text/markdown";
+    pdfBody = window.marked ? marked.parse(dlText) : `<pre>${esc(dlText)}</pre>`;
+  } else if(html!=null){
+    const b=p.querySelector(".outpop-body"); dlText=(b?b.textContent:"").trim();
+    dlName=slug(title)+".txt"; dlType="text/plain";
+    pdfBody = `<pre>${esc(dlText)}</pre>`;
+  }
+  if(dlBtn){
+    if(dlText){
+      dlBtn.style.display="";
+      dlBtn.onclick=(e)=>{ e.stopPropagation();
+        _exportPdf(slug(title)+".pdf", title+" — output", pdfBody,
+                   ()=>_download(dlName||"output.txt", dlText, dlType)); };
+    } else { dlBtn.style.display="none"; }
+  }
   p.style.display="block";
   const pw=Math.min(560, window.innerWidth-20);
   p.style.width=pw+"px";
@@ -753,6 +786,46 @@ function showOutputPopup(anchor){
   p.style.top=top+"px";
 }
 function hideOutputPopup(){ if(outPop) outPop.style.display="none"; }
+function _download(name, text, type){
+  const blob=new Blob([text], {type:(type||"text/plain")+";charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a);
+  a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 1500);
+}
+// Produce a PDF of the popup's content via the browser's native print engine
+// (vector text, correct tables, works offline). Opens a light-themed print view
+// and triggers the print dialog with "Save as PDF" as the destination.
+// Falls back to a .md/.txt download if a popup blocker prevents the window.
+function _exportPdf(name, title, bodyHtml, fallback){
+  const docHtml =
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(name.replace(/\.pdf$/i,""))}</title>`+
+    `<style>`+
+    `@page{margin:14mm}`+
+    `*{-webkit-print-color-adjust:exact;print-color-adjust:exact}`+
+    `body{font:13px/1.55 Arial,Helvetica,sans-serif;color:#111827;margin:0;padding:6px 4px}`+
+    `h1{font-size:19px;color:#0b3d2e;margin:0 0 4px}`+
+    `h2{font-size:15px;color:#0b3d2e;margin:16px 0 6px}`+
+    `h3{font-size:13px;color:#0b3d2e;margin:12px 0 4px}`+
+    `table{border-collapse:collapse;width:100%;font-size:11px;margin:8px 0}`+
+    `th,td{border:1px solid #cbd5e1;padding:4px 7px;text-align:left;vertical-align:top;color:#111827}`+
+    `th{background:#eef2f7}`+
+    `pre{white-space:pre-wrap;font:12px/1.5 Menlo,Consolas,monospace;color:#1f2937}`+
+    `code{font-family:Menlo,Consolas,monospace}`+
+    `.pdfmeta{color:#6b7280;font-size:10px;margin:0 0 14px}`+
+    `</style></head><body>`+
+    `<h1>${esc(title)}</h1>`+
+    `<div class="pdfmeta">Product Researcher — generated ${new Date().toLocaleString()}</div>`+
+    bodyHtml+
+    `</body></html>`;
+  let win=null;
+  try{ win=window.open("", "_blank", "width=900,height=1000"); }catch(e){ win=null; }
+  if(!win){ if(fallback) fallback(); return; }   // popup blocked → save source file instead
+  win.document.open(); win.document.write(docHtml); win.document.close();
+  const go=()=>{ try{ win.focus(); win.print(); }catch(e){} };
+  // Give the new document a moment to lay out before printing.
+  if(win.document.readyState==="complete") setTimeout(go, 300);
+  else win.onload=()=>setTimeout(go, 300);
+}
 
 // Per-agent status pills: idle | waiting | working | finished | failed.
 const STAGE_KEY={research:"s1", sourcing:"s2"};

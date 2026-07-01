@@ -454,7 +454,16 @@ def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-# Serve the dashboard at "/". Mounted last so /api/* routes take precedence.
+# Serve the dashboard HTML with no-store so the browser always loads the latest
+# version (avoids stale-cache 304s serving an old index.html after edits).
+@app.get("/")
+async def dashboard():
+    index_file = os.path.join(STATIC_DIR, "index.html")
+    return FileResponse(index_file, headers={"Cache-Control": "no-store, max-age=0"})
+
+
+# Serve remaining static assets at "/". Mounted last so /api/* and "/" take
+# precedence. StaticFiles handles any other files under static/.
 if os.path.isdir(STATIC_DIR):
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
