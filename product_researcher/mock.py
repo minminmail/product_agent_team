@@ -251,6 +251,30 @@ def _build_report(category: str, products: list) -> str:
             f"| {i} | {p['name']} | {p['score']} | {p['verdict']} | {price} | {p['rationale']} |"
         )
     lines.append("")
+    lines.append("## Per-product scores & pricing")
+    lines.append(
+        "The market-analyst's per-product 0–10 sub-scores, plus the pricing read. "
+        "*Opportunity* is the weighted 0–100 score the predictor computed from the sub-scores."
+    )
+    lines.append("")
+    lines.append("| Product | Demand | Growth | Margin | Competition | Feasibility | Opportunity |")
+    lines.append("|---------|------:|------:|------:|-----------:|-----------:|----------:|")
+    for p in products:
+        b = p.get("breakdown") or {}
+        lines.append(
+            f"| {p['name']} | {b.get('demand','—')} | {b.get('growth','—')} | "
+            f"{b.get('margin','—')} | {b.get('competition','—')} | {b.get('feasibility','—')} | {p['score']} |"
+        )
+    lines.append("")
+    lines.append("| Product | Typical price | Range | Position | Willingness to pay |")
+    lines.append("|---------|---------------|-------|----------|--------------------|")
+    for p in products:
+        pr = p.get("pricing") or {}
+        lines.append(
+            f"| {p['name']} | {pr.get('typical_price','—')} | {pr.get('price_range','—')} | "
+            f"{pr.get('price_position','—')} | {pr.get('willingness','—')} |"
+        )
+    lines.append("")
     lines.append("## Audience & personas")
     lines.append("| Segment | Who | Needs | Channels | Price sensitivity |")
     lines.append("|---------|-----|-------|----------|-------------------|")

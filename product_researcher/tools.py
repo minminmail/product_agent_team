@@ -1,8 +1,14 @@
-"""Custom in-process tools for the product-researcher team.
+"""Team-level tool assembly for the product-researcher team.
 
-These run inside the Python process (no external server) via the SDK's
-in-process MCP support. The team uses them to score candidate products with a
-deterministic, transparent formula and to persist the final results to disk.
+Each agent owns its own tools in its folder (e.g. the predictor owns
+`score_product` in agents/predictor/). This module collects those agent-owned
+tools together with the team-level `save_results` tool (used by the lead to
+persist the final report) into the single in-process `research-tools` MCP
+server the SDK exposes to the team.
+
+Pure scoring/save logic stays SDK-free: the scoring formula lives in
+agents/predictor/scoring.py and the results-writer in core.py. Both are
+re-exported here for backwards compatibility.
 """
 
 from __future__ import annotations
@@ -12,10 +18,12 @@ from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
-# Pure scoring/save logic lives in core.py (SDK-free) so the offline mock
-# pipeline can reuse it without importing claude_agent_sdk. Re-exported here for
-# backwards compatibility.
-from .core import SCORE_WEIGHTS, compute_score, write_results
+# Agent-owned tool: the predictor's deterministic product scorer.
+from .agents.predictor.scoring import SCORE_WEIGHTS, compute_score
+from .agents.predictor.tools import TOOL_SCORE, score_product
+
+# Team-level persistence logic (SDK-free) lives in core.py.
+from .core import write_results
 
 __all__ = [
     "SCORE_WEIGHTS",
@@ -27,37 +35,6 @@ __all__ = [
     "TOOL_SCORE",
     "TOOL_SAVE",
 ]
-
-
-@tool(
-    "score_product",
-    "Compute a 0-100 opportunity score for a candidate product from five "
-    "sub-scores (each 0-10): demand, growth, margin, competition (low=better, "
-    "the tool inverts it), feasibility. Returns the weighted score and a "
-    "verdict so the team ranks candidates consistently.",
-    {
-        "name": str,
-        "demand": float,
-        "growth": float,
-        "margin": float,
-        "competition": float,
-        "feasibility": float,
-    },
-)
-async def score_product(args: dict[str, Any]) -> dict[str, Any]:
-    payload = compute_score(
-        name=args.get("name", "unnamed"),
-        demand=args.get("demand", 0),
-        growth=args.get("growth", 0),
-        margin=args.get("margin", 0),
-        competition=args.get("competition", 0),
-        feasibility=args.get("feasibility", 0),
-    )
-    return {
-        "content": [
-            {"type": "text", "text": json.dumps(payload, indent=2)}
-        ]
-    }
 
 
 @tool(
@@ -85,14 +62,14 @@ async def save_results(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# In-process MCP server exposing the tools above to the agent team.
+# In-process MCP server exposing the team's tools: the predictor's
+# score_product (agent-owned) plus the team-level save_results.
 research_tools_server = create_sdk_mcp_server(
     name="research-tools",
     version="1.0.0",
     tools=[score_product, save_results],
 )
 
-# Fully-qualified tool names for the allowed_tools list.
+# Fully-qualified tool name for the allowed_tools list.
 # SDK in-process MCP tools are namespaced as: mcp__<server>__<tool>
-TOOL_SCORE = "mcp__research-tools__score_product"
 TOOL_SAVE = "mcp__research-tools__save_results"

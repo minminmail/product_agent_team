@@ -118,9 +118,14 @@ def _predictor_prompt(category: str, top: int, output_dir: str,
         f"below into final 0-100 opportunity scores (it must use the {TOOL_SCORE} "
         f"tool) and rank them. Take the top {top}. Then call `{TOOL_SAVE}` with "
         f'category="{category}", output_dir="{output_dir}", and products=[...] '
-        f"(each: name, score, verdict, rationale, evidence, pricing).\n\n"
+        f"(each: name, score, verdict, rationale, evidence, sub_scores (demand, "
+        f"growth, margin, competition, feasibility), pricing).\n\n"
         f"Finally output a clean Markdown report with: an executive summary; a "
         f"table of the top {top} (Rank | Product | Score | Verdict | Price | Why); "
+        f"a 'Per-product scores & pricing' section with TWO tables covering every "
+        f"product — (1) Product | Demand | Growth | Margin | Competition | "
+        f"Feasibility | Opportunity, using the market-analyst's 0-10 sub-scores, "
+        f"and (2) Product | Typical price | Range | Position | Willingness to pay; "
         f"an 'Audience & personas' section; a 'Competitive landscape' section; and "
         f"a short 'Methodology & caveats' note.\n\n"
         f"=== Market analysis ===\n{analysis_text}\n\n"
@@ -193,9 +198,11 @@ def _build_graph(emit):
             from product_researcher.mock import _MOCK_SEGMENTS
             for seg in _MOCK_SEGMENTS:
                 await emit({"type": "tool", "name": "WebSearch", "agent": "subagent",
+                            "owner": "audience-researcher",
                             "summary": f'audience: "{seg["name"]}"'})
-            await emit({"type": "text", "agent": "subagent",
-                        "text": f"Defined {len(_MOCK_SEGMENTS)} target segments."})
+            await emit({"type": "text", "agent": "subagent", "owner": "audience-researcher",
+                        "text": "Defined target segments: "
+                                + ", ".join(s["name"] for s in _MOCK_SEGMENTS) + "."})
             return {}
         from product_researcher.events import run_segment
         text: list[str] = []
@@ -215,9 +222,11 @@ def _build_graph(emit):
             from product_researcher.mock import _MOCK_COMPETITORS
             for comp in _MOCK_COMPETITORS:
                 await emit({"type": "tool", "name": "WebSearch", "agent": "subagent",
+                            "owner": "competitor-analyst",
                             "summary": f'competitor: "{comp["name"]}"'})
-            await emit({"type": "text", "agent": "subagent",
-                        "text": f"Profiled {len(_MOCK_COMPETITORS)} competitors."})
+            await emit({"type": "text", "agent": "subagent", "owner": "competitor-analyst",
+                        "text": "Profiled competitors: "
+                                + ", ".join(c["name"] for c in _MOCK_COMPETITORS) + "."})
             return {}
         from product_researcher.events import run_segment
         text: list[str] = []
@@ -241,8 +250,15 @@ def _build_graph(emit):
             analysed = state["analysed"]
             for name, _sig, sub, _price in analysed:
                 data = compute_score(name=name, **sub)
+                subs = " · ".join(
+                    f"{lab} {sub[k]}"
+                    for k, lab in (("demand", "D"), ("growth", "G"), ("margin", "M"),
+                                   ("competition", "C"), ("feasibility", "F"))
+                    if k in sub
+                )
                 await emit({"type": "tool", "name": "mcp__research-tools__score_product",
-                            "agent": "subagent", "summary": f'score: {name} = {data["score"]}'})
+                            "agent": "subagent", "owner": "predictor",
+                            "summary": f'score: {name} → {data["score"]}  ({subs})'})
             top_products = mock_predict(analysed, state["top"])
             write_results(category=state["category"], products=top_products,
                           output_dir=state["reports_dir"])

@@ -66,15 +66,21 @@ def _provider_setup(provider: str, model: str):
     """Map the selected run provider to (force_env, model, error).
 
     - anthropic → direct Anthropic (no proxy).
-    - groq / deepseek → routed through the local proxy; the model name selects
+    - deepseek  → direct DeepSeek via its Anthropic-compatible API (no proxy);
+      just needs DEEPSEEK_API_KEY in .env.
+    - groq      → routed through the local LiteLLM proxy; the model name selects
       the backend in litellm_proxy.yaml.
     """
-    from .events import _proxy_env, _env  # SDK-free helpers
-    keymap = {"groq": "GROQ_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}
-    if provider in keymap:
-        if not _env(keymap[provider]):
-            return None, model, (f"{provider.capitalize()} run needs {keymap[provider]} in .env "
-                                 f"and the proxy running (./run_proxy.sh).")
+    from .events import _proxy_env, _deepseek_env, _deepseek_model, _env  # SDK-free helpers
+    if provider == "deepseek":
+        env = _deepseek_env()
+        if env is None:
+            return None, model, "DeepSeek run needs DEEPSEEK_API_KEY in .env."
+        return env, _deepseek_model(), None   # call DeepSeek's API directly
+    if provider == "groq":
+        if not _env("GROQ_API_KEY"):
+            return None, model, ("Groq run needs GROQ_API_KEY in .env "
+                                 "and the proxy running (./run_proxy.sh).")
         return _proxy_env(), provider, None   # model name routes the proxy
     return None, model, None   # anthropic (direct)
 
