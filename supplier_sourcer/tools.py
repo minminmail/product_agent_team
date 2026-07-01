@@ -1,9 +1,13 @@
-"""Custom in-process tools for the supplier-sourcing agent.
+"""Team-level tool assembly for the supplier-sourcing agent.
 
-These run inside the Python process via the SDK's in-process MCP support. The
-agent uses them to score suppliers with a deterministic, transparent formula and
-to persist the shortlist to disk. The pure logic lives in core.py (SDK-free) so
-mock mode can reuse it without importing claude_agent_sdk.
+The sourcing-scout owns its `score_supplier` tool in its folder
+(agents/sourcing_scout/). This module collects that agent-owned tool together
+with the team-level `save_suppliers` tool (used to persist the shortlist) into
+the single in-process `sourcing-tools` MCP server the SDK exposes to the agent.
+
+Pure scoring/save logic stays SDK-free: the scoring formula lives in
+agents/sourcing_scout/scoring.py and the suppliers-writer in core.py. Both are
+re-exported here for backwards compatibility.
 """
 
 from __future__ import annotations
@@ -13,11 +17,12 @@ from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
-from .core import (
-    SUPPLIER_WEIGHTS,
-    compute_supplier_score,
-    write_suppliers,
-)
+# Agent-owned tool: the sourcing-scout's deterministic supplier scorer.
+from .agents.sourcing_scout.scoring import SUPPLIER_WEIGHTS, compute_supplier_score
+from .agents.sourcing_scout.tools import TOOL_SCORE_SUPPLIER, score_supplier
+
+# Team-level persistence logic (SDK-free) lives in core.py.
+from .core import write_suppliers
 
 __all__ = [
     "SUPPLIER_WEIGHTS",
@@ -29,58 +34,6 @@ __all__ = [
     "TOOL_SCORE_SUPPLIER",
     "TOOL_SAVE_SUPPLIERS",
 ]
-
-
-@tool(
-    "score_supplier",
-    "Compute a 0-100 supplier-quality score for a manufacturer/supplier from "
-    "five 0-10 sub-scores: quality (product build quality), reputation (reviews, "
-    "track record, buyer trust), certification (strength of valid EU/relevant "
-    "certs like CE, ISO 9001, REACH, RoHS — 10 = full verifiable certs), "
-    "reliability (on-time delivery, communication), price (value for money / "
-    "reasonable MOQ). Prioritises trustworthy, high-quality, EU-certified "
-    "suppliers. Pass product, country, the actual certifications list, and the "
-    "supplier's contact details (phone, email, address, hours, website) for the "
-    "shortlist. Always use this tool — never invent the score.",
-    {
-        "name": str,
-        "quality": float,
-        "reputation": float,
-        "certification": float,
-        "reliability": float,
-        "price": float,
-        "product": str,
-        "country": str,
-        "certifications": list,
-        "phone": str,
-        "email": str,
-        "address": str,
-        "hours": str,
-        "website": str,
-    },
-)
-async def score_supplier(args: dict[str, Any]) -> dict[str, Any]:
-    payload = compute_supplier_score(
-        name=args.get("name", "unnamed supplier"),
-        quality=args.get("quality", 0),
-        reputation=args.get("reputation", 0),
-        certification=args.get("certification", 0),
-        reliability=args.get("reliability", 0),
-        price=args.get("price", 0),
-        product=args.get("product", ""),
-        country=args.get("country", ""),
-        certifications=args.get("certifications") or [],
-        phone=args.get("phone", ""),
-        email=args.get("email", ""),
-        address=args.get("address", ""),
-        hours=args.get("hours", ""),
-        website=args.get("website", ""),
-    )
-    return {
-        "content": [
-            {"type": "text", "text": json.dumps(payload, indent=2)}
-        ]
-    }
 
 
 @tool(
@@ -110,14 +63,14 @@ async def save_suppliers(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# In-process MCP server exposing the tools above to the sourcing agent.
+# In-process MCP server exposing the team's tools: the sourcing-scout's
+# score_supplier (agent-owned) plus the team-level save_suppliers.
 sourcing_tools_server = create_sdk_mcp_server(
     name="sourcing-tools",
     version="1.0.0",
     tools=[score_supplier, save_suppliers],
 )
 
-# Fully-qualified tool names for the allowed_tools list.
+# Fully-qualified tool name for the allowed_tools list.
 # SDK in-process MCP tools are namespaced as: mcp__<server>__<tool>
-TOOL_SCORE_SUPPLIER = "mcp__sourcing-tools__score_supplier"
 TOOL_SAVE_SUPPLIERS = "mcp__sourcing-tools__save_suppliers"

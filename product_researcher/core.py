@@ -1,10 +1,13 @@
-"""Pure, dependency-free core logic for the product-researcher team.
+"""Shared, dependency-free report I/O for the product-researcher team.
 
-This module deliberately imports NOTHING from claude_agent_sdk. It holds the
-deterministic scoring formula and the results-writer so that both the SDK tool
-wrappers (tools.py) and the offline mock pipeline (mock.py) can share identical
-behaviour. Keeping it SDK-free is what lets mock mode run with zero external
-dependencies and no API key.
+This module deliberately imports NOTHING from claude_agent_sdk, so the offline
+mock pipeline (mock.py) can reuse it with zero external dependencies and no API
+key. It holds the team-level results-writer and the predictions-file helpers
+used to hand off to the supplier-sourcing agent.
+
+The deterministic opportunity-scoring formula now lives with the agent that
+owns it — agents/predictor/scoring.py — and is re-exported here (SCORE_WEIGHTS,
+compute_score) for backwards compatibility with existing imports.
 """
 
 from __future__ import annotations
@@ -14,71 +17,18 @@ import os
 import re
 from datetime import datetime, timezone
 
-# Weights for the opportunity score. Tweak to change what the team rewards.
-SCORE_WEIGHTS = {
-    "demand": 0.30,        # how strong / growing is buyer interest
-    "growth": 0.25,        # momentum of the trend
-    "margin": 0.15,        # room for healthy margins
-    "competition": 0.20,   # inverse: low competition scores high
-    "feasibility": 0.10,   # how easy to source / build / launch
-}
+# Re-export the predictor's scoring formula for backwards compatibility.
+# scoring.py is SDK-free, so importing it keeps this module SDK-free too.
+from .agents.predictor.scoring import SCORE_WEIGHTS, compute_score
 
-
-def _clamp(value: float, low: float = 0.0, high: float = 10.0) -> float:
-    return max(low, min(high, value))
-
-
-def compute_score(
-    name: str,
-    demand: float,
-    growth: float,
-    margin: float,
-    competition: float,
-    feasibility: float,
-) -> dict:
-    """Return the opportunity-score payload (name, score, verdict, breakdown).
-
-    Competition is a cost, not a benefit, so it is inverted (10 = no competition).
-    """
-    demand = _clamp(float(demand))
-    growth = _clamp(float(growth))
-    margin = _clamp(float(margin))
-    competition = _clamp(float(competition))
-    feasibility = _clamp(float(feasibility))
-
-    competition_inv = 10.0 - competition
-
-    weighted = (
-        demand * SCORE_WEIGHTS["demand"]
-        + growth * SCORE_WEIGHTS["growth"]
-        + margin * SCORE_WEIGHTS["margin"]
-        + competition_inv * SCORE_WEIGHTS["competition"]
-        + feasibility * SCORE_WEIGHTS["feasibility"]
-    )
-    score = round(weighted * 10, 1)  # scale 0-10 -> 0-100
-
-    if score >= 75:
-        verdict = "Strong bet"
-    elif score >= 60:
-        verdict = "Promising"
-    elif score >= 45:
-        verdict = "Watch"
-    else:
-        verdict = "Pass"
-
-    return {
-        "name": name or "unnamed",
-        "score": score,
-        "verdict": verdict,
-        "breakdown": {
-            "demand": demand,
-            "growth": growth,
-            "margin": margin,
-            "competition": competition,
-            "competition_inverted": competition_inv,
-            "feasibility": feasibility,
-        },
-    }
+__all__ = [
+    "SCORE_WEIGHTS",
+    "compute_score",
+    "write_results",
+    "predictions_path",
+    "parse_report_products",
+    "ensure_predictions_saved",
+]
 
 
 def write_results(category: str, products: list, output_dir: str | None = None) -> str:

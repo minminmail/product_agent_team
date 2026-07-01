@@ -58,12 +58,18 @@ Run this pipeline using your subagents (delegate with the Task tool):
 6. Take the top {top} ranked products. Then call the `{TOOL_SAVE}` tool with:
    category="{category}", output_dir="{output_dir}", and products=[...] where
    each product is an object: name, score, verdict, rationale, evidence (a short
-   source note or URL), and pricing (the market-analyst's pricing block).
+   source note or URL), sub_scores (the market-analyst's five 0-10 sub-scores:
+   demand, growth, margin, competition, feasibility), and pricing (the
+   market-analyst's pricing block).
 
 Finally, output a clean Markdown report to me with these sections:
   # Product Predictions: {category}
   - a 2-3 sentence executive summary
   - a Markdown table of the top {top}: Rank | Product | Score | Verdict | Price | Why
+  - a "Per-product scores & pricing" section with TWO tables carrying the
+    market-analyst's data for every product:
+      1. sub-scores: Product | Demand | Growth | Margin | Competition | Feasibility | Opportunity (0-100)
+      2. pricing: Product | Typical price | Range | Position | Willingness to pay
   - an "Audience & personas" section summarising the target segments
   - a "Competitive landscape" section summarising the key rivals and whitespace
   - a short "Methodology & caveats" note (predictions are probabilistic).
@@ -160,6 +166,33 @@ def _fallback_env() -> dict | None:
     return _proxy_env()
 
 
+def _deepseek_model() -> str:
+    """Model name sent to DeepSeek's Anthropic endpoint. Override with
+    DEEPSEEK_MODEL in .env (e.g. deepseek-v4-flash for a cheaper run)."""
+    return (_env("DEEPSEEK_MODEL") or "deepseek-v4-pro").strip()
+
+
+def _deepseek_env() -> dict | None:
+    """Env that routes a run straight to DeepSeek's Anthropic-compatible API —
+    no local proxy. The Claude Agent SDK CLI talks to ANTHROPIC_BASE_URL and
+    sends the key as both x-api-key and Authorization: Bearer. Returns None if
+    no DEEPSEEK_API_KEY is set. Override the host with DEEPSEEK_BASE_URL."""
+    key = _env("DEEPSEEK_API_KEY")
+    if not key:
+        return None
+    key = key.strip()
+    base = (_env("DEEPSEEK_BASE_URL") or "https://api.deepseek.com/anthropic").strip()
+    return {"ANTHROPIC_BASE_URL": base, "ANTHROPIC_API_KEY": key, "ANTHROPIC_AUTH_TOKEN": key}
+
+
+def _is_local_proxy(base_url: str) -> bool:
+    """True for a localhost LiteLLM proxy URL — used to decide whether an
+    'unreachable' pre-check should suggest ./run_proxy.sh (local) or just let
+    the SDK surface a real network error (remote API like DeepSeek)."""
+    host = (urlparse(base_url).hostname or "").lower()
+    return host in ("localhost", "127.0.0.1", "0.0.0.0", "::1")
+
+
 def _proxy_reachable(base_url: str, timeout: float = 2.0) -> bool:
     """Quick TCP check so we never hand the SDK a dead proxy URL (which would
     hang the run). Returns False if the host:port can't be connected to."""
@@ -187,7 +220,13 @@ def _tool_summary(name: str, tool_input: dict) -> str:
     if name in ("WebFetch",) and "url" in tool_input:
         return f'fetch: {tool_input["url"]}'
     if name.endswith("score_product"):
-        return f'score: {tool_input.get("name", "?")}'
+        subs = " · ".join(
+            f"{lab} {tool_input[k]}"
+            for k, lab in (("demand", "D"), ("growth", "G"), ("margin", "M"),
+                           ("competition", "C"), ("feasibility", "F"))
+            if k in tool_input
+        )
+        return f'score: {tool_input.get("name", "?")}' + (f'  ({subs})' if subs else "")
     if name.endswith("save_results"):
         prods = tool_input.get("products", [])
         return f'save: {len(prods) if isinstance(prods, list) else "?"} products'
@@ -258,14 +297,18 @@ async def _attempt(prompt: str, model: str, output_dir: str, env: dict | None):
         async for message in query(prompt=prompt, options=options):
             if isinstance(message, AssistantMessage):
                 agent = "lead" if not message.parent_tool_use_id else "subagent"
+                # Which subagent produced this message — resolved from the Task
+                # tool-use that spawned it. Lets the UI attribute output to the
+                # right agent even when several run in parallel.
+                owner = tool_use_owner.get(message.parent_tool_use_id) if message.parent_tool_use_id else None
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         if block.text.strip():
                             if agent == "lead":
                                 report_parts.append(block.text)
-                            yield {"type": "text", "agent": agent, "text": block.text}, False
+                            yield {"type": "text", "agent": agent, "owner": owner, "text": block.text}, False
                     elif isinstance(block, ThinkingBlock):
-                        yield {"type": "thinking", "agent": agent}, False
+                        yield {"type": "thinking", "agent": agent, "owner": owner}, False
                     elif isinstance(block, ToolUseBlock):
                         name = block.name
                         tin = block.input if isinstance(block.input, dict) else {}
@@ -277,7 +320,7 @@ async def _attempt(prompt: str, model: str, output_dir: str, env: dict | None):
                                    "task": _short(tin.get("description") or tin.get("prompt", ""), 200)}, False
                         else:
                             tool_use_owner[block.id] = name
-                            yield {"type": "tool", "name": name, "agent": agent,
+                            yield {"type": "tool", "name": name, "agent": agent, "owner": owner,
                                    "summary": _tool_summary(name, tin)}, False
             elif isinstance(message, ResultMessage):
                 report = "".join(report_parts).strip() or (getattr(message, "result", "") or "").strip()
@@ -325,9 +368,10 @@ async def run_stream(
     yield {"type": "start", "category": category, "top": top, "model": model}
 
     if force_env is not None:
-        if not _proxy_reachable(force_env.get("ANTHROPIC_BASE_URL", "")):
+        _base = force_env.get("ANTHROPIC_BASE_URL", "")
+        if _is_local_proxy(_base) and not _proxy_reachable(_base):
             yield {"type": "error",
-                   "message": f"Proxy not reachable at {force_env.get('ANTHROPIC_BASE_URL')} — "
+                   "message": f"Proxy not reachable at {_base} — "
                               "start it with ./run_proxy.sh, then re-run."}
             return
         async for ev, _fatal in _attempt(prompt, model, output_dir, force_env):
@@ -373,14 +417,20 @@ async def _segment_once(prompt, model, output_dir, env, collect, only_agent=None
         async for message in query(prompt=prompt, options=options):
             if isinstance(message, AssistantMessage):
                 agent = "lead" if not message.parent_tool_use_id else "subagent"
+                # A segment runs exactly ONE specialist (only_agent), so ALL of
+                # its output belongs to that agent — whether it delegated to the
+                # named subagent OR answered directly as the segment lead. Tag
+                # every event so the UI attributes it to the right specialist,
+                # even when segments run in parallel.
+                owner = only_agent
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         if block.text.strip():
                             if collect is not None:
                                 collect.append(block.text)
-                            yield {"type": "text", "agent": agent, "text": block.text}, False
+                            yield {"type": "text", "agent": agent, "owner": owner, "text": block.text}, False
                     elif isinstance(block, ThinkingBlock):
-                        yield {"type": "thinking", "agent": agent}, False
+                        yield {"type": "thinking", "agent": agent, "owner": owner}, False
                     elif isinstance(block, ToolUseBlock):
                         name = block.name
                         tin = block.input if isinstance(block.input, dict) else {}
@@ -392,7 +442,7 @@ async def _segment_once(prompt, model, output_dir, env, collect, only_agent=None
                                    "task": _short(tin.get("description") or tin.get("prompt", ""), 200)}, False
                         else:
                             tool_use_owner[block.id] = name
-                            yield {"type": "tool", "name": name, "agent": agent,
+                            yield {"type": "tool", "name": name, "agent": agent, "owner": owner,
                                    "summary": _tool_summary(name, tin)}, False
             elif isinstance(message, ResultMessage):
                 seg_report = "".join(collect or []).strip() or (getattr(message, "result", "") or "").strip()
@@ -427,9 +477,10 @@ async def run_segment(
     """
     output_dir = os.path.abspath(output_dir)
     if force_env is not None:
-        if not _proxy_reachable(force_env.get("ANTHROPIC_BASE_URL", "")):
+        _base = force_env.get("ANTHROPIC_BASE_URL", "")
+        if _is_local_proxy(_base) and not _proxy_reachable(_base):
             yield {"type": "error",
-                   "message": f"Proxy not reachable at {force_env.get('ANTHROPIC_BASE_URL')} — "
+                   "message": f"Proxy not reachable at {_base} — "
                               "start it with ./run_proxy.sh, then re-run."}
             return
         async for ev, _fatal in _segment_once(prompt, model, output_dir, force_env, collect, only_agent):

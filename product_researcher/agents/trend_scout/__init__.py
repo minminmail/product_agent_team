@@ -1,0 +1,1 @@
+"""trend-scout agent package."""

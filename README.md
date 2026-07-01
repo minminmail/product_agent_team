@@ -9,12 +9,14 @@ Because the sourcing agent works from the saved `predictions_*.json` rather than
 
 ## Agent 1 — product_researcher
 
-A lead orchestrator delegates to three specialist subagents:
+A lead orchestrator delegates to five specialist subagents:
 
 | Agent | Role |
 |-------|------|
-| **trend-scout** | Web-searches for 8–15 specific emerging products + rising signals + sources |
-| **market-analyst** | Scores each candidate 0–10 on demand, growth, margin, competition, feasibility |
+| **trend-scout** | Web-searches for specific emerging products + rising signals + sources |
+| **market-analyst** | Scores each candidate 0–10 on demand, growth, margin, competition, feasibility, plus pricing |
+| **audience-researcher** | Builds 3–4 target customer segments and buyer personas |
+| **competitor-analyst** | Profiles rival brands: positioning, messaging, pricing, ad spend |
 | **predictor** | Turns sub-scores into a deterministic 0–100 opportunity score and ranks them |
 
 `score_product` (in-process tool) computes the transparent 0–100 opportunity score; `save_results` writes the JSON.
@@ -28,6 +30,45 @@ A lead orchestrator delegates to one specialist subagent:
 | **sourcing-scout** | For each top product, finds real manufacturers/suppliers and ranks up to 10, prioritising trustworthy reputation, high quality, and valid EU certifications |
 
 `score_supplier` (in-process tool) computes a 0–100 supplier-quality score weighting **quality, reputation, EU certification (CE/ISO 9001/REACH/RoHS…), reliability and price**; `save_suppliers` writes the JSON. It reads the research agent's output via `predictions_<category>.json`.
+
+## Data flow — agent inputs & outputs
+
+Each agent's input and output, and how work threads between them:
+
+```mermaid
+flowchart TD
+    C([category]) --> TS["trend-scout"]
+    TS -->|"8–15 candidates + signals + sources"| CAND[/"candidate list"/]
+
+    CAND --> MA["market-analyst"]
+    CAND --> AR["audience-researcher · Heidi"]
+    CAND --> CA["competitor-analyst · Yangsi"]
+
+    MA -->|"0–10 sub-scores + pricing"| ANALYSIS[/"market analysis"/]
+    AR -->|"3–4 segments + personas"| AUD[/"audience"/]
+    CA -->|"4–6 rival profiles + whitespace"| COMP[/"competitors"/]
+
+    ANALYSIS --> PRED["predictor · Jose"]
+    AUD --> PRED
+    COMP --> PRED
+    PRED -->|"score_product → save_results"| PJSON[("predictions_*.json + ranked report")]
+
+    PJSON --> SS["sourcing-scout · Javier"]
+    SS -->|"score_supplier → save_suppliers"| SJSON[("suppliers_*.json + supplier report")]
+
+    subgraph S1["Stage 1 · Research — lead: Maria"]
+        TS
+        MA
+        AR
+        CA
+        PRED
+    end
+    subgraph S2["Stage 2 · Sourcing — lead: Javier"]
+        SS
+    end
+```
+
+**Execution order:** `trend-scout` → `market-analyst` → then **`audience-researcher` ∥ `competitor-analyst` in parallel** → `predictor` fans in once both finish → Stage 2 `sourcing-scout`. `market-analyst`, `audience-researcher` and `competitor-analyst` all consume the same candidate list; `predictor` combines the analysis, audience and competitor outputs. Threaded context is capped (~2,500 chars) between nodes to keep per-request tokens low. Amanda (orchestrator) runs Stage 1 → Stage 2 and stops before sourcing if research yields no products.
 
 ## Setup
 
@@ -217,20 +258,34 @@ or run research and sourcing for different categories in parallel.
 
 ## Project layout
 
+Each subagent lives in **its own folder** under `agents/`, holding everything it
+owns — its definition (`agent.py`) and, where it has them, its own tools and pure
+scoring logic. Team-level pieces shared by the lead (the `save_*` tool, the JSON
+writers, the predictions handoff) stay in each team's `tools.py`/`core.py`.
+
 ```
 agent_team/
 ├─ product_researcher/      # AGENT 1 — find & rank products
-│  ├─ core.py      # pure, SDK-free scoring/save logic (score_product, write_results)
-│  ├─ tools.py     # SDK tool wrappers: score_product, save_results
-│  ├─ agents.py    # 3 subagents: trend-scout, market-analyst, predictor
+│  ├─ agents/               # one folder per subagent
+│  │  ├─ __init__.py        # assembles AGENTS (lazily, so pure submodules stay SDK-free)
+│  │  ├─ _shared.py         # web-source config shared across the research agents
+│  │  ├─ trend_scout/        agent.py
+│  │  ├─ market_analyst/     agent.py
+│  │  ├─ audience_researcher/agent.py
+│  │  ├─ competitor_analyst/ agent.py
+│  │  └─ predictor/         # agent.py + scoring.py (opportunity formula) + tools.py (score_product)
+│  ├─ core.py      # shared, SDK-free report I/O (write_results, predictions handoff); re-exports the scoring formula
+│  ├─ tools.py     # assembles the research-tools MCP server (predictor's score_product + team save_results)
 │  ├─ events.py    # research pipeline + SDK-message → UI-event translator
 │  ├─ mock.py      # fully offline research pipeline (no SDK / API key needed)
 │  ├─ main.py      # research CLI
 │  └─ server.py    # FastAPI dashboard (SSE) — serves BOTH agents
 ├─ supplier_sourcer/        # AGENT 2 — source suppliers from a saved report
-│  ├─ core.py      # pure, SDK-free supplier scoring + load_predictions/write_suppliers
-│  ├─ tools.py     # SDK tool wrappers: score_supplier, save_suppliers
-│  ├─ agents.py    # 1 subagent: sourcing-scout
+│  ├─ agents/
+│  │  ├─ __init__.py        # assembles AGENTS (lazily)
+│  │  └─ sourcing_scout/    # agent.py + scoring.py (supplier formula) + tools.py (score_supplier)
+│  ├─ core.py      # shared, SDK-free report I/O (write_suppliers, load_predictions); re-exports the scoring formula
+│  ├─ tools.py     # assembles the sourcing-tools MCP server (sourcing-scout's score_supplier + team save_suppliers)
 │  ├─ events.py    # sourcing pipeline (reads predictions_*.json)
 │  ├─ mock.py      # fully offline sourcing pipeline
 │  └─ main.py      # sourcing CLI
@@ -241,6 +296,11 @@ agent_team/
 ├─ requirements.txt
 └─ .env.example
 ```
+
+Adding a subagent: create `agents/<name>/agent.py` exposing `AGENT` (and `NAME`),
+then register it in `agents/__init__.py`'s `_AGENT_MODULES`. If it needs its own
+tool, drop a `tools.py` (and SDK-free `scoring.py`) in the same folder and wire
+the tool into the team's `tools.py` MCP server.
 
 ### Orchestrator (Amanda)
 
