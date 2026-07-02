@@ -55,6 +55,8 @@ class PipelineState(TypedDict, total=False):
     competitor_text: str        # live: competitor-analyst output
     failed: bool                # an upstream node errored → skip the rest
     force_env: dict             # route every node through the proxy (Groq button)
+    sourcing_model: str         # Stage 2 model override (defaults to `model`)
+    sourcing_force_env: dict    # Stage 2 proxy/provider env override
     research_ok: bool
 
 
@@ -322,12 +324,20 @@ def _build_graph(emit):
     async def sourcing_node(state: PipelineState) -> dict:
         await emit({"type": "stage", "stage": "sourcing", "agent": "Javier",
                     "label": "Stage 2 · Sourcing"})
+        # Stage 2 may use a different model/provider than research.
+        s_model = state.get("sourcing_model") or state["model"]
+        s_force_env = state.get("sourcing_force_env")
+        if s_force_env is None:
+            s_force_env = state.get("force_env")
         if state["mock"]:
             from supplier_sourcer.mock import run_stream_mock as sourcing
+            stream = sourcing(state["category"], state["reports_dir"], state["reports_dir"],
+                              s_model, state["source_top"], state["per_product"])
         else:
             from supplier_sourcer.events import run_stream as sourcing
-        async for ev in sourcing(state["category"], state["reports_dir"], state["reports_dir"],
-                                 state["model"], state["source_top"], state["per_product"]):
+            stream = sourcing(state["category"], state["reports_dir"], state["reports_dir"],
+                              s_model, state["source_top"], state["per_product"], force_env=s_force_env)
+        async for ev in stream:
             await emit(ev)
         return {}
 
@@ -373,9 +383,12 @@ async def run_pipeline_graph(
     model: str = "sonnet",
     mock: bool = False,
     force_env: dict | None = None,
+    sourcing_model: str | None = None,
+    sourcing_force_env: dict | None = None,
 ) -> AsyncIterator[dict]:
     """Run the LangGraph pipeline, yielding the same events as run_pipeline().
-    force_env routes every node through the proxy (Groq button)."""
+    force_env routes every node through the proxy (Groq button).
+    sourcing_model / sourcing_force_env let Stage 2 use a different model/provider."""
     reports_dir = os.path.abspath(reports_dir)
     os.makedirs(reports_dir, exist_ok=True)
 
@@ -389,6 +402,7 @@ async def run_pipeline_graph(
         "category": category, "top": top, "source_top": source_top,
         "per_product": per_product, "reports_dir": reports_dir,
         "model": model, "mock": mock, "force_env": force_env,
+        "sourcing_model": sourcing_model, "sourcing_force_env": sourcing_force_env,
     }
 
     async def run() -> None:

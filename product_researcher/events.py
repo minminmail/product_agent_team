@@ -167,9 +167,11 @@ def _fallback_env() -> dict | None:
 
 
 def _deepseek_model() -> str:
-    """Model name sent to DeepSeek's Anthropic endpoint. Override with
-    DEEPSEEK_MODEL in .env (e.g. deepseek-v4-flash for a cheaper run)."""
-    return (_env("DEEPSEEK_MODEL") or "deepseek-v4-pro").strip()
+    """Default model sent to DeepSeek's Anthropic endpoint when the UI doesn't
+    specify one. Override with DEEPSEEK_MODEL in .env. Defaults to deepseek-chat,
+    which is available on every account (the deepseek-v4-* names are newer and
+    may not be enabled on all keys)."""
+    return (_env("DEEPSEEK_MODEL") or "deepseek-chat").strip()
 
 
 def _deepseek_env() -> dict | None:

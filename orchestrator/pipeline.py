@@ -26,9 +26,13 @@ async def run_pipeline(
     model: str = "sonnet",
     mock: bool = False,
     force_env: dict | None = None,
+    sourcing_model: str | None = None,
+    sourcing_force_env: dict | None = None,
 ) -> AsyncIterator[dict]:
     """Run research, then (if it succeeded) supplier sourcing on its output.
-    force_env routes both stages through the proxy (Groq button)."""
+    force_env routes both stages through the proxy (Groq button).
+    sourcing_model / sourcing_force_env let Stage 2 use a different model/provider
+    than Stage 1 (defaults to the research model when not given)."""
     reports_dir = os.path.abspath(reports_dir)
     os.makedirs(reports_dir, exist_ok=True)
 
@@ -68,14 +72,16 @@ async def run_pipeline(
     yield {"type": "stage", "stage": "sourcing", "agent": "Javier",
            "label": "Stage 2 · Sourcing"}
 
+    s_model = sourcing_model or model
+    s_force_env = sourcing_force_env if sourcing_force_env is not None else force_env
     if mock:
         from supplier_sourcer.mock import run_stream_mock as sourcing
-        sourcing_stream = sourcing(category, reports_dir, reports_dir, model,
+        sourcing_stream = sourcing(category, reports_dir, reports_dir, s_model,
                                    source_top, per_product)
     else:
         from supplier_sourcer.events import run_stream as sourcing
-        sourcing_stream = sourcing(category, reports_dir, reports_dir, model,
-                                   source_top, per_product, force_env=force_env)
+        sourcing_stream = sourcing(category, reports_dir, reports_dir, s_model,
+                                   source_top, per_product, force_env=s_force_env)
 
     async for ev in sourcing_stream:
         yield ev

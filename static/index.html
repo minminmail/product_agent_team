@@ -121,6 +121,9 @@
     letter-spacing:.04em;padding:2px 9px;border-radius:8px;border:1px solid var(--accent);background:transparent;
     color:var(--accent);cursor:pointer;white-space:nowrap;width:auto;flex:none}
   .outpop-dl:hover{background:var(--accent);color:#06131f}
+  .outpop-close{font-family:inherit;font-size:12px;font-weight:700;line-height:1;padding:3px 8px;border-radius:8px;
+    border:1px solid var(--border);background:var(--chip);color:var(--muted);cursor:pointer;width:auto;flex:none}
+  .outpop-close:hover{color:#fff;border-color:var(--red);background:var(--red)}
   .outpop-body{line-height:1.5;word-break:break-word}
   .outpop-body pre{white-space:pre-wrap}
   .outpop-body table{border-collapse:collapse} .outpop-body th,.outpop-body td{border:1px solid var(--border);padding:3px 7px}
@@ -246,19 +249,9 @@
           <label for="cat">Product category / market</label>
           <input id="cat" placeholder="e.g. smart home gadgets" value="smart home gadgets" />
         </div>
-        <div class="row" style="margin-top:10px">
-          <div style="flex:1">
-            <label for="top">Top N</label>
-            <input id="top" type="number" min="1" max="30" value="5" />
-          </div>
-          <div style="flex:2">
-            <label for="model">Lead model</label>
-            <select id="model">
-              <option value="haiku" selected>haiku (cheapest)</option>
-              <option value="sonnet">sonnet</option>
-              <option value="opus">opus</option>
-            </select>
-          </div>
+        <div style="margin-top:10px">
+          <label for="top">Top N</label>
+          <input id="top" type="number" min="1" max="30" value="5" />
         </div>
         <label style="margin-top:4px">Run mode</label>
         <div class="row" style="margin-bottom:6px">
@@ -278,6 +271,22 @@
           </div>
         </div>
         <div class="mode-hint" id="modeHint">Anthropic API — uses your key &amp; credits for real research.</div>
+        <div id="modelWrap" style="margin-top:8px">
+          <label for="model">Lead model</label>
+          <select id="model" title="Model options depend on the selected run mode"></select>
+        </div>
+        <div id="sourceModelWrap" style="margin-top:8px">
+          <label for="sourceModel">Sourcing model · Stage 2</label>
+          <select id="sourceModel" title="Model for supplier sourcing (Stage 2). Sourcing needs reliable tool use — Anthropic is recommended.">
+            <option value="" selected>Same as research</option>
+            <option value="anthropic|sonnet">Anthropic · Sonnet (reliable)</option>
+            <option value="anthropic|haiku">Anthropic · Haiku</option>
+            <option value="anthropic|opus">Anthropic · Opus</option>
+            <option value="deepseek|deepseek-chat">DeepSeek · Chat</option>
+            <option value="deepseek|deepseek-reasoner">DeepSeek · Reasoner</option>
+            <option value="groq|">Groq (free)</option>
+          </select>
+        </div>
         <label style="margin-top:4px">Pipeline engine</label>
         <div class="toggle" id="engineToggle">
           <button type="button" class="seg" id="eng-standard">⚙ Standard</button>
@@ -536,6 +545,29 @@ const MODE_HINTS = {
   mock:      "Mock — fully offline, no API key or credits used.",
 };
 const PAID_MODES = ["anthropic","deepseek"], FREE_MODES = ["groq","mock"];
+// Lead-model options per run mode. Free modes (groq/mock) have no model choice
+// (proxy/offline pick it), so their dropdown is emptied and disabled.
+const MODELS = {
+  anthropic: [["haiku","Haiku (cheapest)"],["sonnet","Sonnet"],["opus","Opus"]],
+  // deepseek-chat is the safe default (available on every account). The
+  // deepseek-v4-* names are newer/cheaper but may not be enabled on all keys.
+  deepseek:  [["deepseek-chat","Chat (recommended)"],["deepseek-reasoner","Reasoner (thinking)"],
+              ["deepseek-v4-flash","V4 Flash (cheapest)"],["deepseek-v4-pro","V4 Pro"]],
+};
+function populateModels(mode){
+  const sel=$("#model"); if(!sel) return;
+  const list=MODELS[mode];
+  sel.innerHTML="";
+  if(!list){                       // free providers → empty + disabled
+    sel.disabled=true; sel.title="No model choice for this provider";
+    return;
+  }
+  sel.disabled=false; sel.title="Lead model for this provider";
+  for(const [val,label] of list){
+    const o=document.createElement("option"); o.value=val; o.textContent=label; sel.appendChild(o);
+  }
+  sel.selectedIndex=0;
+}
 function setRunMode(mode){
   runMode = mode;
   mockMode = (mode === "mock");          // kept for existing checks
@@ -543,6 +575,7 @@ function setRunMode(mode){
   $("#paidSelect").value = PAID_MODES.includes(mode) ? mode : "";
   $("#freeSelect").value = FREE_MODES.includes(mode) ? mode : "";
   $("#modeHint").innerHTML = MODE_HINTS[mode] || MODE_HINTS.anthropic;
+  populateModels(mode);                  // swap the Lead model list to match
 }
 $("#paidSelect").addEventListener("change", e=>{ if(running){ e.target.value = PAID_MODES.includes(runMode)?runMode:""; return; } if(e.target.value) setRunMode(e.target.value); });
 $("#freeSelect").addEventListener("change", e=>{ if(running){ e.target.value = FREE_MODES.includes(runMode)?runMode:""; return; } if(e.target.value) setRunMode(e.target.value); });
@@ -751,9 +784,12 @@ function showOutputPopup(anchor){
       ? (window.marked ? marked.parse(md) : `<pre>${esc(md)}</pre>`)
       : `<div style="color:var(--muted)">No output captured for this step — it may be summarized in the final report on the right.</div>`);
   p.innerHTML = `<div class="outpop-h"><span>▦ ${esc(title)} — output</span>`+
-    `<button type="button" class="outpop-dl" title="Download this report as PDF">⬇ PDF</button></div>`+
+    `<button type="button" class="outpop-dl" title="Download this report as PDF">⬇ PDF</button>`+
+    `<button type="button" class="outpop-close" title="Close">✕</button></div>`+
     `<div class="outpop-body">${bodyHtml}</div>`+
-    `<div class="outpop-x">Click anywhere to dismiss</div>`;
+    `<div class="outpop-x">Click outside, or ✕, to close</div>`;
+  const closeBtn=p.querySelector(".outpop-close");
+  if(closeBtn) closeBtn.onclick=(e)=>{ e.stopPropagation(); hideOutputPopup(); };
   // Download button → PDF of whatever this popup is showing. Markdown reports
   // render as rich HTML; activity cards render as preformatted text. Falls back
   // to a .md/.txt file if the PDF library couldn't load.
@@ -871,6 +907,10 @@ function launch(kind){
   const top=$("#top").value||10, model=$("#model").value, mock=(runMode==="mock");
   mockMode = mock;
   const provider = mock ? "anthropic" : runMode;   // anthropic | deepseek | groq
+  // Stage 2 sourcing override: "" = same as research; else "provider|model".
+  const srcSel = (!mock && $("#sourceModel")) ? $("#sourceModel").value : "";
+  const srcProvider = srcSel ? (srcSel.split("|")[0]||"") : "";
+  const srcModel = srcSel ? (srcSel.split("|")[1]||"") : "";
   running=true; reportBuf=""; clearAgents(); activeSub=null; clearStatuses(); clearGraph();
   runKind=kind; researchPhase=(kind!=="sourcing"); hadError=false; succeeded=false; failMessages=[]; hideFailPopup();
   Object.keys(agentOutputs).forEach(k=>delete agentOutputs[k]); researchReport=""; sourcingReport=""; hideOutputPopup();
@@ -901,12 +941,14 @@ function launch(kind){
   if(kind==="pipeline"){
     const engLabel = engine==="langgraph" ? "LangGraph" : "Standard";
     const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
-    addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>${engLabel}</b> engine${tag}`);
-    url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&engine=${engine}&provider=${provider}&mock=${mock}`;
+    addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>${engLabel}</b> engine${tag}`+(srcSel?` · sourcing on <b>${esc(srcModel||srcProvider)}</b>`:""));
+    url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&engine=${engine}&provider=${provider}&mock=${mock}`+
+        `&source_provider=${encodeURIComponent(srcProvider)}&source_model=${encodeURIComponent(srcModel)}`;
   } else if(kind==="sourcing"){
-    const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
-    addEv("","🏭",`Sourcing suppliers for <b>${esc(cat)}</b> · ${esc(model)}${tag}`);
-    url=`/api/sourcing?category=${encodeURIComponent(cat)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}`;
+    const soProvider = srcProvider || provider, soModel = srcSel ? srcModel : model;
+    const tag = mock?" · <b>MOCK</b>":(soProvider!=="anthropic"?` · <b>${soProvider.toUpperCase()}</b>`:"");
+    addEv("","🏭",`Sourcing suppliers for <b>${esc(cat)}</b> · ${esc(soModel||soProvider)}${tag}`);
+    url=`/api/sourcing?category=${encodeURIComponent(cat)}&model=${encodeURIComponent(soModel)}&provider=${soProvider}&mock=${mock}`;
   } else {
     const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
     addEv("","▶",`Researching <b>${esc(cat)}</b> · top ${esc(top)} · ${esc(model)}${tag}`);
