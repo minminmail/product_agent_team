@@ -76,7 +76,10 @@ def _provider_setup(provider: str, model: str):
         env = _deepseek_env()
         if env is None:
             return None, model, "DeepSeek run needs DEEPSEEK_API_KEY in .env."
-        return env, _deepseek_model(), None   # call DeepSeek's API directly
+        # Use the DeepSeek model chosen in the UI (e.g. deepseek-v4-flash /
+        # deepseek-v4-pro); fall back to the DEEPSEEK_MODEL env default.
+        ds_model = model if (model or "").startswith("deepseek") else _deepseek_model()
+        return env, ds_model, None            # call DeepSeek's API directly
     if provider == "groq":
         if not _env("GROQ_API_KEY"):
             return None, model, ("Groq run needs GROQ_API_KEY in .env "
@@ -391,6 +394,8 @@ async def pipeline(
     per: int = Query(5, ge=1, le=20),
     model: str = Query("haiku"),
     provider: str = Query("anthropic", description="'groq' to force the free proxy."),
+    source_provider: str = Query("", description="Provider for Stage 2 sourcing; blank = same as research."),
+    source_model: str = Query("", description="Model for Stage 2 sourcing; blank = same as research."),
     engine: str = Query("", description="'langgraph' to use the LangGraph engine; else deterministic."),
     mock: bool = Query(False, description="Run the whole pipeline offline (no API key/credits)."),
 ) -> StreamingResponse:
@@ -404,6 +409,8 @@ async def pipeline(
                 return
             force_env = None
             run_model = model
+            sourcing_model = None          # None → run_pipeline reuses the research model
+            sourcing_force_env = None
             if not mock:
                 force_env, run_model, perr = _provider_setup(provider, model)
                 if perr:
@@ -412,6 +419,15 @@ async def pipeline(
                     yield _sse({"type": "error",
                                 "message": "ANTHROPIC_API_KEY is not set. Tip: use a Free "
                                            "provider (Groq / Mock) instead."}); return
+                # Optional Stage 2 (sourcing) override — a different model/provider
+                # than research (e.g. keep research cheap on DeepSeek, source on Anthropic).
+                if source_provider.strip():
+                    sourcing_force_env, sourcing_model, s_perr = _provider_setup(source_provider, source_model)
+                    if s_perr:
+                        yield _sse({"type": "error", "message": "Sourcing model — " + s_perr}); return
+                    if source_provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
+                        yield _sse({"type": "error",
+                                    "message": "Sourcing model needs ANTHROPIC_API_KEY set."}); return
             # Engine selection: explicit ?engine=langgraph, else USE_LANGGRAPH env.
             use_langgraph = (engine.strip().lower() == "langgraph") or (
                 engine == "" and
@@ -425,7 +441,9 @@ async def pipeline(
                     return
             else:
                 from orchestrator.pipeline import run_pipeline
-            async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, run_model, mock, force_env=force_env):
+            async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, run_model, mock,
+                                         force_env=force_env, sourcing_model=sourcing_model,
+                                         sourcing_force_env=sourcing_force_env):
                 yield _sse(ev)
         except Exception as exc:
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
@@ -459,7 +477,10 @@ def _sse(payload: dict) -> str:
 @app.get("/")
 async def dashboard():
     index_file = os.path.join(STATIC_DIR, "index.html")
-    return FileResponse(index_file, headers={"Cache-Control": "no-store, max-age=0"})
+    # Explicit text/html so the browser always renders (not downloads/blank), and
+    # no-store so it never serves a stale cached dashboard.
+    return FileResponse(index_file, media_type="text/html",
+                        headers={"Cache-Control": "no-store, max-age=0"})
 
 
 # Serve remaining static assets at "/". Mounted last so /api/* and "/" take
