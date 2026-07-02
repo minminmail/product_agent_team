@@ -58,6 +58,7 @@ class PipelineState(TypedDict, total=False):
     sourcing_model: str         # Stage 2 model override (defaults to `model`)
     sourcing_force_env: dict    # Stage 2 proxy/provider env override
     research_ok: bool
+    lang: str                   # report/output language ("en" | "zh" | "es")
 
 
 # --------------------------------------------------------------------------- #
@@ -100,6 +101,12 @@ def _competitor_prompt(category: str, candidates_text: str) -> str:
         f"spend, strengths/gaps) and the competitive whitespace. Return the "
         f"profiles.\n\nCandidates:\n{candidates_text}"
     )
+
+
+def _lang_note(state: "PipelineState") -> str:
+    """Language directive appended to every live segment prompt."""
+    from product_researcher.events import lang_instruction
+    return lang_instruction(state.get("lang"))
 
 
 def _cap(text: str, limit: int = 2500) -> str:
@@ -162,7 +169,7 @@ def _build_graph(emit):
             return {"candidates": cands}
         from product_researcher.events import run_segment
         text: list[str] = []; err = False
-        async for ev in run_segment(_trend_prompt(state["category"]),
+        async for ev in run_segment(_trend_prompt(state["category"]) + _lang_note(state),
                                     state["model"], state["reports_dir"], text,
                                     force_env=state.get("force_env"), only_agent="trend-scout"):
             if ev.get("type") == "error":
@@ -199,7 +206,7 @@ def _build_graph(emit):
             return {"analysed": analysed}
         from product_researcher.events import run_segment
         text: list[str] = []; err = False
-        async for ev in run_segment(_analyst_prompt(state["category"], state.get("candidates_text", "")),
+        async for ev in run_segment(_analyst_prompt(state["category"], state.get("candidates_text", "")) + _lang_note(state),
                                     state["model"], state["reports_dir"], text,
                                     force_env=state.get("force_env"), only_agent="market-analyst"):
             if ev.get("type") == "error":
@@ -225,7 +232,7 @@ def _build_graph(emit):
             return {}
         from product_researcher.events import run_segment
         text: list[str] = []
-        async for ev in run_segment(_audience_prompt(state["category"], state.get("candidates_text", "")),
+        async for ev in run_segment(_audience_prompt(state["category"], state.get("candidates_text", "")) + _lang_note(state),
                                     state["model"], state["reports_dir"], text,
                                     force_env=state.get("force_env"), only_agent="audience-researcher"):
             await emit(ev)
@@ -249,7 +256,7 @@ def _build_graph(emit):
             return {}
         from product_researcher.events import run_segment
         text: list[str] = []
-        async for ev in run_segment(_competitor_prompt(state["category"], state.get("candidates_text", "")),
+        async for ev in run_segment(_competitor_prompt(state["category"], state.get("candidates_text", "")) + _lang_note(state),
                                     state["model"], state["reports_dir"], text,
                                     force_env=state.get("force_env"), only_agent="competitor-analyst"):
             await emit(ev)
@@ -294,7 +301,7 @@ def _build_graph(emit):
         async for ev in run_segment(
             _predictor_prompt(state["category"], state["top"], state["reports_dir"],
                               state.get("analysis_text", ""), state.get("audience_text", ""),
-                              state.get("competitor_text", "")),
+                              state.get("competitor_text", "")) + _lang_note(state),
             state["model"], state["reports_dir"], text,
             force_env=state.get("force_env"), only_agent="predictor",
         ):
@@ -336,7 +343,8 @@ def _build_graph(emit):
         else:
             from supplier_sourcer.events import run_stream as sourcing
             stream = sourcing(state["category"], state["reports_dir"], state["reports_dir"],
-                              s_model, state["source_top"], state["per_product"], force_env=s_force_env)
+                              s_model, state["source_top"], state["per_product"], force_env=s_force_env,
+                              lang=state.get("lang", "en"))
         async for ev in stream:
             await emit(ev)
         return {}
@@ -385,6 +393,7 @@ async def run_pipeline_graph(
     force_env: dict | None = None,
     sourcing_model: str | None = None,
     sourcing_force_env: dict | None = None,
+    lang: str = "en",
 ) -> AsyncIterator[dict]:
     """Run the LangGraph pipeline, yielding the same events as run_pipeline().
     force_env routes every node through the proxy (Groq button).
@@ -403,6 +412,7 @@ async def run_pipeline_graph(
         "per_product": per_product, "reports_dir": reports_dir,
         "model": model, "mock": mock, "force_env": force_env,
         "sourcing_model": sourcing_model, "sourcing_force_env": sourcing_force_env,
+        "lang": lang,
     }
 
     async def run() -> None:

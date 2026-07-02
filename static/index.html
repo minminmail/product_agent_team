@@ -205,6 +205,11 @@
   .auth-actions button{flex:1;width:auto}
   .auth-actions .secondary{background:var(--panel2);color:var(--accent);border:1px solid var(--border)}
   .auth-actions .secondary:hover{border-color:var(--accent)}
+  .auth-lang{display:flex;align-items:center;gap:10px}
+  .auth-lang label{margin:0;flex:0 0 auto}
+  .auth-lang select{flex:1}
+  .langbox{margin-left:12px}
+  .langbox select{width:auto;padding:5px 9px;font-size:12px;border-radius:7px}
 </style>
 </head>
 <body>
@@ -212,6 +217,14 @@
 <div id="authGate" class="auth-gate" style="display:none">
   <div class="auth-card">
     <div class="auth-brand">Marketing Agent Team</div>
+    <div class="auth-lang">
+      <label for="langSel" id="langLabel">Language</label>
+      <select id="langSel">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+        <option value="es">Español</option>
+      </select>
+    </div>
     <h2 id="authH">Welcome</h2>
     <input id="authEmail" type="email" placeholder="you@company.com" autocomplete="email" />
     <input id="authPass" type="password" placeholder="Password (min 8 characters)" autocomplete="current-password" />
@@ -232,9 +245,14 @@
 <header>
   <span class="dot" id="health"></span>
   <h1>Marketing Agent Team</h1>
-  <span class="sub">multi-agent market scan &amp; prediction · Claude Agent SDK</span>
+  <span class="sub" id="headerSub">multi-agent market scan &amp; prediction · Claude Agent SDK</span>
   <span class="proxychip" id="proxyChip" style="display:none"></span>
   <span class="userbox" id="userBox"></span>
+  <span class="langbox"><select id="langSelHdr" title="Language / 语言 / Idioma">
+    <option value="zh">中文</option>
+    <option value="en">English</option>
+    <option value="es">Español</option>
+  </select></span>
 </header>
 
 <div id="verifyBanner" class="banner" style="display:none"></div>
@@ -244,27 +262,27 @@
   <div class="left">
     <div class="controls">
       <div class="cfgbox">
-        <div class="cfgbox-title">Configuration</div>
+        <div class="cfgbox-title" id="cfgTitle">Configuration</div>
         <div>
-          <label for="cat">Product category / market</label>
+          <label for="cat" id="lblCat">Product category / market</label>
           <input id="cat" placeholder="e.g. smart home gadgets" value="smart home gadgets" />
         </div>
         <div style="margin-top:10px">
-          <label for="top">Top N</label>
+          <label for="top" id="lblTop">Top N</label>
           <input id="top" type="number" min="1" max="30" value="5" />
         </div>
-        <label style="margin-top:4px">Run mode</label>
+        <label style="margin-top:4px" id="lblRunMode">Run mode</label>
         <div class="row" style="margin-bottom:6px">
           <div style="flex:1">
             <select id="paidSelect" title="Paid providers">
-              <option value="" disabled selected>💳 Paid…</option>
+              <option value="" disabled selected id="paidPh">💳 Paid…</option>
               <option value="anthropic">Anthropic API</option>
               <option value="deepseek">DeepSeek API</option>
             </select>
           </div>
           <div style="flex:1">
             <select id="freeSelect" title="Free providers">
-              <option value="" disabled selected>🆓 Free…</option>
+              <option value="" disabled selected id="freePh">🆓 Free…</option>
               <option value="groq">Groq (free)</option>
               <option value="mock">Mock</option>
             </select>
@@ -272,13 +290,13 @@
         </div>
         <div class="mode-hint" id="modeHint">Anthropic API — uses your key &amp; credits for real research.</div>
         <div id="modelWrap" style="margin-top:8px">
-          <label for="model">Lead model</label>
+          <label for="model" id="lblLeadModel">Lead model</label>
           <select id="model" title="Model options depend on the selected run mode"></select>
         </div>
         <div id="sourceModelWrap" style="margin-top:8px">
-          <label for="sourceModel">Sourcing model · Stage 2</label>
+          <label for="sourceModel" id="lblSrcModel">Sourcing model · Stage 2</label>
           <select id="sourceModel" title="Model for supplier sourcing (Stage 2). Sourcing needs reliable tool use — Anthropic is recommended.">
-            <option value="" selected>Same as research</option>
+            <option value="" selected id="srcSame">Same as research</option>
             <option value="anthropic|sonnet">Anthropic · Sonnet (reliable)</option>
             <option value="anthropic|haiku">Anthropic · Haiku</option>
             <option value="anthropic|opus">Anthropic · Opus</option>
@@ -287,7 +305,7 @@
             <option value="groq|">Groq (free)</option>
           </select>
         </div>
-        <label style="margin-top:4px">Pipeline engine</label>
+        <label style="margin-top:4px" id="lblEngine">Pipeline engine</label>
         <div class="toggle" id="engineToggle">
           <button type="button" class="seg" id="eng-standard">⚙ Standard</button>
           <button type="button" class="seg active" id="eng-langgraph">◇ LangGraph</button>
@@ -295,8 +313,8 @@
         <div class="mode-hint" id="engineHint">Pipeline engine. LangGraph needs <code>pip install langgraph</code>.</div>
       </div>
       <button id="pipe" class="agent-btn primary"></button>
-      <div class="mode-hint">Amanda runs the full pipeline: research → suppliers.</div>
-      <div class="or-row"><span>or run a single stage</span></div>
+      <div class="mode-hint" id="pipeHint">Amanda runs the full pipeline: research → suppliers.</div>
+      <div class="or-row"><span id="orRow">or run a single stage</span></div>
       <button id="run" class="agent-btn"></button>
       <button id="source" class="agent-btn" title="If no saved report exists, this runs research first, then sources suppliers"></button>
       <div class="mode-hint" id="sourceHint">Stage 2 unlocks once a research report exists for this category.</div>
@@ -388,7 +406,7 @@
   <!-- RIGHT: final report -->
   <div class="right">
     <div class="bar">
-      <span class="stat">Status: <b id="status">idle</b></span>
+      <span class="stat" id="statLbl">Status: <b id="status">idle</b></span>
       <span class="stat" id="s-turns" style="display:none">Turns: <b>—</b></span>
       <span class="stat" id="s-time" style="display:none">Time: <b>—</b></span>
       <span class="stat" id="s-cost" style="display:none">Cost: <b>—</b></span>
@@ -407,6 +425,154 @@
 </div>
 
 <script>
+// ------------------------- i18n (中文 / English / Español) -------------------------
+const I18N = {
+en:{
+  language:"Language", welcome:"Welcome",
+  passPh:"Password (min 8 characters)", newPassPh:"New password (min 8 characters)", newPass2Ph:"Confirm new password",
+  login:"Log in", signup:"Sign up", forgot:"Forgot password?", backLogin:"Back to log in",
+  sendReset:"Send reset link", setNewPass:"Set new password", resetTitle:"Reset your password", newPassTitle:"Set a new password",
+  enterBoth:"Enter your email and password.", wrong:"Something went wrong.",
+  netErr:"Network error — is the server running?", netErr2:"Network error.", enterEmail:"Enter your email.",
+  resetSent:"If that email has an account, a reset link is on its way.",
+  passMin:"Password must be at least 8 characters.", passMismatch:"Passwords don't match.",
+  passUpdated:"Password updated — please log in.", couldNotReset:"Could not reset password.",
+  logout:"Log out", verifySent:"Please verify your email — we sent a link to <b>{email}</b>.",
+  verifyNot:"Your email isn't verified yet.", resend:"Resend email", sending:"Sending…", sent:"Sent ✓",
+  already:"Already verified ✓", failedWord:"Failed", verifiedThanks:"✓ Email verified — thanks!",
+  sub:"multi-agent market scan &amp; prediction · Claude Agent SDK",
+  cfg:"Configuration", cat:"Product category / market", catPh:"e.g. smart home gadgets", topN:"Top N",
+  runMode:"Run mode", paidPh:"💳 Paid…", freePh:"🆓 Free…",
+  leadModel:"Lead model", srcModel:"Sourcing model · Stage 2", sameAsResearch:"Same as research", engine:"Pipeline engine",
+  hintAnthropic:"Anthropic API — uses your key &amp; credits for real research.",
+  hintDeepseek:"DeepSeek API (paid) — calls DeepSeek directly. Needs <code>DEEPSEEK_API_KEY</code> in .env (no proxy).",
+  hintGroq:"Groq (free) — routes via the local proxy → Groq. Needs <code>./run_proxy.sh</code> running.",
+  hintMock:"Mock — fully offline, no API key or credits used.",
+  engLG:"LangGraph engine — a StateGraph with a conditional edge. Needs <code>pip install langgraph</code>.",
+  engStd:"Standard engine — the lightweight deterministic orchestrator.",
+  pipeBtn:"Run full pipeline", runBtn:"Run research", sourceBtn:"Source suppliers",
+  pipeHint:"Amanda runs the full pipeline: research → suppliers.", orRow:"or run a single stage",
+  srcReady:"Stage 2 ready — a research report exists for this category.",
+  srcNot:"No report yet — Source suppliers will run research first, then source.",
+  tlEmpty:"Enter a category and hit <b>Run research</b> to watch the team work.",
+  running:"Running…", statusLbl:"Status: ", stIdle:"idle", stRunning:"running", stComplete:"complete",
+  stErrors:"finished with errors", stError:"error", stRetry:"retrying via Gemini",
+  turns:"Turns: ", time:"Time: ", cost:"Cost: ",
+  rptEmpty:"The final ranked report appears here.", rptWorking:"Working… the report will stream in.",
+  notStarted:"not started", waiting:"waiting", working:"working", finished:"finished", failed:"failed", done:"done",
+  showLog:"📋 Show log", hideLog:"📋 Hide log", clear:"Clear", events:"events",
+  logEmpty:"No activity yet — run the pipeline to see calls here.",
+  outBtn:"output", outWord:"output", closeHint:"Click outside, or ✕, to close",
+  whyFailed:"⚠ Why this failed", dismiss:"Click anywhere to dismiss", noDetail:"No failure detail was reported.",
+  noOutput:"No output captured for this step — it may be summarized in the final report on the right.",
+  statusWord:"Status:", activityLog:"Activity log", generated:"generated",
+  noReportYet:"_This agent hasn't run yet. Run the pipeline to see its output here._",
+  noSeparate:"_This agent produced no separate report text — see its activity below._",
+  connLost:"Connection lost.",
+  stages:{"Stage 1 · Research":"Stage 1 · Research","Stage 2 · Sourcing":"Stage 2 · Sourcing"},
+  roles:{"Orchestrator":"Orchestrator","Product Researcher":"Product Researcher","Supplier Sourcer":"Supplier Sourcer",
+         "Audience Researcher":"Audience Researcher","Competitor Analyst":"Competitor Analyst","Predictor":"Predictor"},
+},
+zh:{
+  language:"语言", welcome:"欢迎",
+  passPh:"密码（至少 8 个字符）", newPassPh:"新密码（至少 8 个字符）", newPass2Ph:"确认新密码",
+  login:"登录", signup:"注册", forgot:"忘记密码？", backLogin:"返回登录",
+  sendReset:"发送重置链接", setNewPass:"设置新密码", resetTitle:"重置密码", newPassTitle:"设置新密码",
+  enterBoth:"请输入邮箱和密码。", wrong:"出错了。",
+  netErr:"网络错误——服务器在运行吗？", netErr2:"网络错误。", enterEmail:"请输入邮箱。",
+  resetSent:"如果该邮箱已注册，重置链接已发送。",
+  passMin:"密码至少需要 8 个字符。", passMismatch:"两次输入的密码不一致。",
+  passUpdated:"密码已更新——请登录。", couldNotReset:"无法重置密码。",
+  logout:"退出登录", verifySent:"请验证您的邮箱——我们已向 <b>{email}</b> 发送链接。",
+  verifyNot:"您的邮箱尚未验证。", resend:"重新发送邮件", sending:"发送中…", sent:"已发送 ✓",
+  already:"已验证 ✓", failedWord:"失败", verifiedThanks:"✓ 邮箱验证成功——谢谢！",
+  sub:"多智能体市场扫描与预测 · Claude Agent SDK",
+  cfg:"配置", cat:"产品品类 / 市场", catPh:"例如：智能家居产品", topN:"前 N 名",
+  runMode:"运行模式", paidPh:"💳 付费…", freePh:"🆓 免费…",
+  leadModel:"主模型", srcModel:"采购模型 · 第二阶段", sameAsResearch:"与研究相同", engine:"流水线引擎",
+  hintAnthropic:"Anthropic API——使用您的密钥和额度进行真实研究。",
+  hintDeepseek:"DeepSeek API（付费）——直接调用 DeepSeek。需要在 .env 中设置 <code>DEEPSEEK_API_KEY</code>（无需代理）。",
+  hintGroq:"Groq（免费）——通过本地代理 → Groq。需要运行 <code>./run_proxy.sh</code>。",
+  hintMock:"Mock——完全离线，不使用 API 密钥或额度。",
+  engLG:"LangGraph 引擎——带条件边的 StateGraph。需要 <code>pip install langgraph</code>。",
+  engStd:"标准引擎——轻量的确定性编排器。",
+  pipeBtn:"运行完整流水线", runBtn:"运行研究", sourceBtn:"寻找供应商",
+  pipeHint:"Amanda 运行完整流水线：研究 → 供应商。", orRow:"或运行单个阶段",
+  srcReady:"第二阶段就绪——该品类已有研究报告。",
+  srcNot:"尚无报告——“寻找供应商”会先运行研究，再进行采购。",
+  tlEmpty:"输入品类并点击<b>运行研究</b>，观看团队工作。",
+  running:"运行中…", statusLbl:"状态：", stIdle:"空闲", stRunning:"运行中", stComplete:"完成",
+  stErrors:"完成但有错误", stError:"错误", stRetry:"正在通过 Gemini 重试",
+  turns:"轮次：", time:"用时：", cost:"成本：",
+  rptEmpty:"最终排名报告将显示在这里。", rptWorking:"处理中……报告将实时显示。",
+  notStarted:"未开始", waiting:"等待中", working:"工作中", finished:"已完成", failed:"失败", done:"完成",
+  showLog:"📋 显示日志", hideLog:"📋 隐藏日志", clear:"清除", events:"条事件",
+  logEmpty:"暂无活动——运行流水线后可在此查看调用。",
+  outBtn:"输出", outWord:"输出", closeHint:"点击外部或 ✕ 关闭",
+  whyFailed:"⚠ 失败原因", dismiss:"点击任意处关闭", noDetail:"未报告失败详情。",
+  noOutput:"此步骤未捕获输出——可能已汇总到右侧的最终报告中。",
+  statusWord:"状态：", activityLog:"活动日志", generated:"生成于",
+  noReportYet:"_该智能体尚未运行。运行流水线后可在此查看其输出。_",
+  noSeparate:"_该智能体没有单独的报告文本——请查看下方活动。_",
+  connLost:"连接丢失。",
+  stages:{"Stage 1 · Research":"第一阶段 · 研究","Stage 2 · Sourcing":"第二阶段 · 采购"},
+  roles:{"Orchestrator":"编排者","Product Researcher":"产品研究员","Supplier Sourcer":"供应商采购员",
+         "Audience Researcher":"受众研究员","Competitor Analyst":"竞品分析师","Predictor":"预测师"},
+},
+es:{
+  language:"Idioma", welcome:"Bienvenido",
+  passPh:"Contraseña (mín. 8 caracteres)", newPassPh:"Nueva contraseña (mín. 8 caracteres)", newPass2Ph:"Confirmar nueva contraseña",
+  login:"Iniciar sesión", signup:"Registrarse", forgot:"¿Olvidaste tu contraseña?", backLogin:"Volver a iniciar sesión",
+  sendReset:"Enviar enlace de restablecimiento", setNewPass:"Establecer nueva contraseña",
+  resetTitle:"Restablece tu contraseña", newPassTitle:"Establece una nueva contraseña",
+  enterBoth:"Introduce tu correo y contraseña.", wrong:"Algo salió mal.",
+  netErr:"Error de red — ¿está el servidor en marcha?", netErr2:"Error de red.", enterEmail:"Introduce tu correo.",
+  resetSent:"Si ese correo tiene una cuenta, el enlace va en camino.",
+  passMin:"La contraseña debe tener al menos 8 caracteres.", passMismatch:"Las contraseñas no coinciden.",
+  passUpdated:"Contraseña actualizada — inicia sesión.", couldNotReset:"No se pudo restablecer la contraseña.",
+  logout:"Cerrar sesión", verifySent:"Verifica tu correo — enviamos un enlace a <b>{email}</b>.",
+  verifyNot:"Tu correo aún no está verificado.", resend:"Reenviar correo", sending:"Enviando…", sent:"Enviado ✓",
+  already:"Ya verificado ✓", failedWord:"Falló", verifiedThanks:"✓ Correo verificado — ¡gracias!",
+  sub:"escaneo y predicción de mercado multiagente · Claude Agent SDK",
+  cfg:"Configuración", cat:"Categoría de producto / mercado", catPh:"p. ej. gadgets de hogar inteligente", topN:"Top N",
+  runMode:"Modo de ejecución", paidPh:"💳 De pago…", freePh:"🆓 Gratis…",
+  leadModel:"Modelo principal", srcModel:"Modelo de sourcing · Etapa 2", sameAsResearch:"Igual que investigación", engine:"Motor del pipeline",
+  hintAnthropic:"API de Anthropic — usa tu clave y créditos para investigación real.",
+  hintDeepseek:"API de DeepSeek (de pago) — llama a DeepSeek directamente. Requiere <code>DEEPSEEK_API_KEY</code> en .env (sin proxy).",
+  hintGroq:"Groq (gratis) — vía el proxy local → Groq. Requiere <code>./run_proxy.sh</code> en marcha.",
+  hintMock:"Mock — totalmente offline, sin clave API ni créditos.",
+  engLG:"Motor LangGraph — un StateGraph con arista condicional. Requiere <code>pip install langgraph</code>.",
+  engStd:"Motor estándar — el orquestador determinista ligero.",
+  pipeBtn:"Ejecutar pipeline completo", runBtn:"Ejecutar investigación", sourceBtn:"Buscar proveedores",
+  pipeHint:"Amanda ejecuta el pipeline completo: investigación → proveedores.", orRow:"o ejecuta una sola etapa",
+  srcReady:"Etapa 2 lista — existe un informe de investigación para esta categoría.",
+  srcNot:"Aún no hay informe — «Buscar proveedores» ejecutará primero la investigación.",
+  tlEmpty:"Introduce una categoría y pulsa <b>Ejecutar investigación</b> para ver al equipo trabajar.",
+  running:"Ejecutando…", statusLbl:"Estado: ", stIdle:"inactivo", stRunning:"ejecutando", stComplete:"completado",
+  stErrors:"terminado con errores", stError:"error", stRetry:"reintentando vía Gemini",
+  turns:"Turnos: ", time:"Tiempo: ", cost:"Coste: ",
+  rptEmpty:"El informe final aparecerá aquí.", rptWorking:"Trabajando… el informe llegará en streaming.",
+  notStarted:"sin iniciar", waiting:"en espera", working:"trabajando", finished:"terminado", failed:"falló", done:"hecho",
+  showLog:"📋 Mostrar registro", hideLog:"📋 Ocultar registro", clear:"Limpiar", events:"eventos",
+  logEmpty:"Sin actividad — ejecuta el pipeline para ver llamadas aquí.",
+  outBtn:"salida", outWord:"salida", closeHint:"Haz clic fuera, o ✕, para cerrar",
+  whyFailed:"⚠ Por qué falló", dismiss:"Haz clic en cualquier lugar para cerrar", noDetail:"No se reportó detalle del fallo.",
+  noOutput:"No se capturó salida en este paso — puede estar resumida en el informe final a la derecha.",
+  statusWord:"Estado:", activityLog:"Registro de actividad", generated:"generado",
+  noReportYet:"_Este agente aún no se ha ejecutado. Ejecuta el pipeline para ver su salida aquí._",
+  noSeparate:"_Este agente no produjo texto de informe propio — mira su actividad abajo._",
+  connLost:"Conexión perdida.",
+  stages:{"Stage 1 · Research":"Etapa 1 · Investigación","Stage 2 · Sourcing":"Etapa 2 · Sourcing"},
+  roles:{"Orchestrator":"Orquestadora","Product Researcher":"Investigadora de producto","Supplier Sourcer":"Buscador de proveedores",
+         "Audience Researcher":"Investigadora de audiencia","Competitor Analyst":"Analista de competencia","Predictor":"Predictor"},
+},
+};
+let LANG = localStorage.getItem("uiLang") || "en";
+if(!I18N[LANG]) LANG = "en";
+const t = k => (I18N[LANG] && I18N[LANG][k]) ?? I18N.en[k] ?? k;
+const tStage = s => (I18N[LANG].stages && I18N[LANG].stages[s]) || s;
+const tRole  = r => (I18N[LANG].roles  && I18N[LANG].roles[r])  || r;
+
 const AGENTS = [
   ["lead","🧭 lead","Stage 1 · Research"],
   ["trend-scout","🔭 trend-scout","Stage 1 · Research"],
@@ -505,10 +671,10 @@ function avatarSVG(p){
 }
 const agentStage = Object.fromEntries(AGENTS.map(([id,,stage])=>[id,stage]));
 // Matching avatar + label markup for the two agent buttons.
-const BTN_HTML = {
-  pipe: `<span class="btn-av" title="Amanda — Orchestrator">${avatarSVG(ORCHESTRATOR)}</span><span>Run full pipeline</span>`,
-  run: `<span class="btn-av" title="Maria — Product Researcher">${avatarSVG(PEOPLE['Stage 1 · Research'])}</span><span>Run research</span>`,
-  source: `<span class="btn-av" title="Javier — Supplier Sourcer">${avatarSVG(PEOPLE['Stage 2 · Sourcing'])}</span><span>Source suppliers</span>`,
+const BTN_HTML = {   // getters so labels re-render in the current language
+  get pipe(){ return `<span class="btn-av" title="Amanda — ${tRole('Orchestrator')}">${avatarSVG(ORCHESTRATOR)}</span><span>${t('pipeBtn')}</span>`; },
+  get run(){ return `<span class="btn-av" title="Maria — ${tRole('Product Researcher')}">${avatarSVG(PEOPLE['Stage 1 · Research'])}</span><span>${t('runBtn')}</span>`; },
+  get source(){ return `<span class="btn-av" title="Javier — ${tRole('Supplier Sourcer')}">${avatarSVG(PEOPLE['Stage 2 · Sourcing'])}</span><span>${t('sourceBtn')}</span>`; },
 };
 const $ = s => document.querySelector(s);
 const teamEl = $("#team"), tl = $("#timeline"), reportEl = $("#report");
@@ -518,12 +684,12 @@ let apiBaseUrl = "https://api.anthropic.com", apiCustom = false;
 const logLines = [];
 function addLog(level, key, msg){
   logLines.push({ t: new Date().toLocaleTimeString(), level, key, msg });
-  $("#logMeta").textContent = logLines.length + " events";
+  $("#logMeta").textContent = logLines.length + " " + t('events');
   if($("#logPanel").classList.contains("open")) renderLog();
 }
 function renderLog(){
   const p = $("#logPanel");
-  if(!logLines.length){ p.innerHTML = '<div class="logempty">No activity yet — run the pipeline to see calls here.</div>'; return; }
+  if(!logLines.length){ p.innerHTML = '<div class="logempty">'+esc(t('logEmpty'))+'</div>'; return; }
   p.innerHTML = logLines.map(l =>
     `<div class="logrow ${l.level}"><span class="lt">${esc(l.t)}</span> <span class="lk">${esc(l.key)}</span> ${esc(l.msg)}</div>`
   ).join("");
@@ -531,18 +697,15 @@ function renderLog(){
 }
 function toggleLog(){
   const open = $("#logPanel").classList.toggle("open");
-  $("#logToggle").textContent = open ? "📋 Hide log" : "📋 Show log";
+  $("#logToggle").textContent = open ? t('hideLog') : t('showLog');
   if(open) renderLog();
 }
 function clearLog(){ logLines.length = 0; $("#logMeta").textContent = ""; renderLog(); }
 
 // Run mode: anthropic | deepseek (paid) · groq (free) | mock (offline).
 let runMode = "anthropic";
-const MODE_HINTS = {
-  anthropic: "Anthropic API — uses your key &amp; credits for real research.",
-  deepseek:  "DeepSeek API (paid) — calls DeepSeek directly. Needs <code>DEEPSEEK_API_KEY</code> in .env (no proxy).",
-  groq:      "Groq (free) — routes via the local proxy → Groq. Needs <code>./run_proxy.sh</code> running.",
-  mock:      "Mock — fully offline, no API key or credits used.",
+const MODE_HINTS = {  // i18n keys — resolved through t() at render time
+  anthropic: "hintAnthropic", deepseek: "hintDeepseek", groq: "hintGroq", mock: "hintMock",
 };
 const PAID_MODES = ["anthropic","deepseek"], FREE_MODES = ["groq","mock"];
 // Lead-model options per run mode. Free modes (groq/mock) have no model choice
@@ -574,7 +737,7 @@ function setRunMode(mode){
   // Keep the two dropdowns mutually exclusive: the inactive one shows its placeholder.
   $("#paidSelect").value = PAID_MODES.includes(mode) ? mode : "";
   $("#freeSelect").value = FREE_MODES.includes(mode) ? mode : "";
-  $("#modeHint").innerHTML = MODE_HINTS[mode] || MODE_HINTS.anthropic;
+  $("#modeHint").innerHTML = t(MODE_HINTS[mode] || MODE_HINTS.anthropic);
   populateModels(mode);                  // swap the Lead model list to match
 }
 $("#paidSelect").addEventListener("change", e=>{ if(running){ e.target.value = PAID_MODES.includes(runMode)?runMode:""; return; } if(e.target.value) setRunMode(e.target.value); });
@@ -586,9 +749,7 @@ function setEngine(e){
   engine=e;
   $("#eng-standard").classList.toggle("active", e==="standard");
   $("#eng-langgraph").classList.toggle("active", e==="langgraph");
-  $("#engineHint").innerHTML = e==="langgraph"
-    ? "LangGraph engine — a StateGraph with a conditional edge. Needs <code>pip install langgraph</code>."
-    : "Standard engine — the lightweight deterministic orchestrator.";
+  $("#engineHint").innerHTML = e==="langgraph" ? t('engLG') : t('engStd');
   $("#graphPanel").style.display = e==="langgraph" ? "" : "none";
 }
 $("#eng-standard").addEventListener("click", ()=>{ if(!running) setEngine("standard"); });
@@ -623,11 +784,11 @@ function renderTeam(){
   const ohead=document.createElement("div");
   ohead.className="stage-head";
   ohead.innerHTML=
-    `<span class="avatar" id="av-${o.key}" title="${esc(o.name)} — ${esc(o.role)}" `+
+    `<span class="avatar" id="av-${o.key}" title="${esc(o.name)} — ${esc(tRole(o.role))}" `+
     `style="background:${o.color}">${avatarSVG(o)}</span>`+
-    `<span class="stage-label"><b class="person">${esc(o.name)}</b> · ${esc(o.role)}</span>`+
+    `<span class="stage-label"><b class="person">${esc(o.name)}</b> · ${esc(tRole(o.role))}</span>`+
     `<span class="status" id="st-${o.key}"></span>`+
-    `<button type="button" class="outbtn" data-out="st-${o.key}" title="View ${esc(o.name)}'s output">output</button>`;
+    `<button type="button" class="outbtn" data-out="st-${o.key}" title="${esc(o.name)}">${esc(t('outBtn'))}</button>`;
   teamEl.appendChild(ohead);
   let lastStage = null;
   AGENTS.forEach(([id,label,stage])=>{
@@ -636,11 +797,11 @@ function renderTeam(){
       const head=document.createElement("div");
       head.className="stage-head";
       head.innerHTML=
-        `<span class="avatar" id="av-${m.key||''}" title="${esc(m.name||'')} — ${esc(m.role||stage)}" `+
+        `<span class="avatar" id="av-${m.key||''}" title="${esc(m.name||'')} — ${esc(tRole(m.role||stage))}" `+
         `style="background:${m.color||'var(--chip)'}">${avatarSVG(m)}</span>`+
-        `<span class="stage-label"><b class="person">${esc(m.name||'')}</b> · ${esc(stage)}</span>`+
+        `<span class="stage-label"><b class="person">${esc(m.name||'')}</b> · ${esc(tStage(stage))}</span>`+
         `<span class="status" id="st-${m.key||''}"></span>`+
-        `<button type="button" class="outbtn" data-out="st-${m.key||''}" title="View ${esc(m.name||'')}'s output">output</button>`;
+        `<button type="button" class="outbtn" data-out="st-${m.key||''}" title="${esc(m.name||'')}">${esc(t('outBtn'))}</button>`;
       teamEl.appendChild(head); lastStage=stage;
     }
     const person=AGENT_PEOPLE[id];
@@ -648,18 +809,18 @@ function renderTeam(){
       const row=document.createElement("div");
       row.className="stage-head sub-person"; row.id="ag-"+id;
       row.innerHTML=
-        `<span class="avatar" id="av-${person.key}" title="${esc(person.name)} — ${esc(person.role)}" `+
+        `<span class="avatar" id="av-${person.key}" title="${esc(person.name)} — ${esc(tRole(person.role))}" `+
         `style="background:${person.color}">${avatarSVG(person)}</span>`+
-        `<span class="stage-label"><b class="person">${esc(person.name)}</b> · ${esc(person.role)}</span>`+
+        `<span class="stage-label"><b class="person">${esc(person.name)}</b> · ${esc(tRole(person.role))}</span>`+
         `<span class="status" id="st-${person.key}"></span>`+
-        `<button type="button" class="outbtn" data-out="st-${person.key}" title="View ${esc(person.name)}'s output">output</button>`;
+        `<button type="button" class="outbtn" data-out="st-${person.key}" title="${esc(person.name)}">${esc(t('outBtn'))}</button>`;
       teamEl.appendChild(row);
       return;
     }
     const d=document.createElement("div");
     d.className="agent-chip"; d.id="ag-"+id;
-    d.innerHTML=`<span class="pip"></span>${label}<span class="status ns" id="cs-${id}">not started</span>`+
-      `<button type="button" class="outbtn" data-out="cs-${id}" title="View this agent's output">output</button>`;
+    d.innerHTML=`<span class="pip"></span>${label}<span class="status ns" id="cs-${id}">${esc(t('notStarted'))}</span>`+
+      `<button type="button" class="outbtn" data-out="cs-${id}">${esc(t('outBtn'))}</button>`;
     teamEl.appendChild(d);
   });
 }
@@ -671,7 +832,7 @@ function setAgent(id,state){
   // each chip shows its own status, defaulting to "not started"
   const cs=$("#cs-"+id);
   if(cs){
-    cs.textContent = state==="active" ? "working" : state==="done" ? "done" : state==="failed" ? "failed" : "not started";
+    cs.textContent = state==="active" ? t('working') : state==="done" ? t('done') : state==="failed" ? t('failed') : t('notStarted');
     cs.className = "status " + (state==="active" ? "working" : state==="done" ? "finished" : state==="failed" ? "failed" : "ns");
   }
   const person=AGENT_PEOPLE[id];
@@ -696,10 +857,10 @@ function ensureFailPop(){
 }
 function showFailPopup(anchor){
   const p=ensureFailPop();
-  const msgs = failMessages.length ? failMessages : ["No failure detail was reported."];
-  p.innerHTML = `<div class="failpop-h">⚠ Why this failed</div>`+
+  const msgs = failMessages.length ? failMessages : [t('noDetail')];
+  p.innerHTML = `<div class="failpop-h">${esc(t('whyFailed'))}</div>`+
     msgs.map(m=>`<div class="failpop-m">${esc(m)}</div>`).join("")+
-    `<div class="failpop-x">Click anywhere to dismiss</div>`;
+    `<div class="failpop-x">${esc(t('dismiss'))}</div>`;
   p.style.display="block";
   const pw=Math.min(380, window.innerWidth-20);
   p.style.width=pw+"px";
@@ -732,26 +893,25 @@ function ensureOutPop(){
 // (status + the task they were delegated + tool-call log + captured output).
 const PERSON_AGENT = Object.fromEntries(Object.entries(AGENT_PEOPLE).map(([id,p])=>[p.key,id]));
 const CHIP_LABEL   = Object.fromEntries(AGENTS.map(([id,label])=>[id,label]));
-const _stLabel = s => s==="active" ? "working" : s==="done" ? "done" : s==="failed" ? "failed" : "not started";
+const _stLabel = s => s==="active" ? t('working') : s==="done" ? t('done') : s==="failed" ? t('failed') : t('notStarted');
 const _stCls   = s => s==="active" ? "working" : s==="done" ? "done" : s==="failed" ? "failed" : "";
 function _agentTitle(id){
   const p=AGENT_PEOPLE[id];
-  return (p ? `${p.name} · ${p.role}` : (CHIP_LABEL[id]||id).replace(/^\S+\s/,"")) + " · output";
+  return (p ? `${p.name} · ${tRole(p.role)}` : (CHIP_LABEL[id]||id).replace(/^\S+\s/,"")) + " · " + t('outWord');
 }
 // A specialist's output view, as Markdown: its captured report/output followed
 // by its tool-call activity log. Markdown so it renders richly on screen and
 // exports cleanly to PDF (tables, headings, etc.).
 function _soloAgentMd(id){
   const s=agentState[id];
-  const stTxt = s==="active"?"working":s==="done"?"done":s==="failed"?"failed":"not started";
+  const stTxt = _stLabel(s);
   const out=(agentOutputs[id]||"").trim();
   const acts=(agentActivity[id]||[]);
-  let md = `**Status:** ${stTxt}\n\n`;
+  let md = `**${t('statusWord')}** ${stTxt}\n\n`;
   md += out ? out
-            : (s ? "_This agent produced no separate report text — see its activity below._"
-                 : "_This agent hasn't run yet. Run the pipeline to see its output here._");
+            : (s ? t('noSeparate') : t('noReportYet'));
   if(acts.length){
-    md += "\n\n---\n\n**Activity log**\n\n" + acts.map(a=>`- ${a.ic} ${a.t}`).join("\n");
+    md += `\n\n---\n\n**${t('activityLog')}**\n\n` + acts.map(a=>`- ${a.ic} ${a.t}`).join("\n");
   }
   return md;
 }
@@ -783,11 +943,11 @@ function showOutputPopup(anchor){
     : (hasMd
       ? (window.marked ? marked.parse(md) : `<pre>${esc(md)}</pre>`)
       : `<div style="color:var(--muted)">No output captured for this step — it may be summarized in the final report on the right.</div>`);
-  p.innerHTML = `<div class="outpop-h"><span>▦ ${esc(title)} — output</span>`+
-    `<button type="button" class="outpop-dl" title="Download this report as PDF">⬇ PDF</button>`+
-    `<button type="button" class="outpop-close" title="Close">✕</button></div>`+
+  p.innerHTML = `<div class="outpop-h"><span>▦ ${esc(title)}</span>`+
+    `<button type="button" class="outpop-dl" title="PDF">⬇ PDF</button>`+
+    `<button type="button" class="outpop-close" title="✕">✕</button></div>`+
     `<div class="outpop-body">${bodyHtml}</div>`+
-    `<div class="outpop-x">Click outside, or ✕, to close</div>`;
+    `<div class="outpop-x">${esc(t('closeHint'))}</div>`;
   const closeBtn=p.querySelector(".outpop-close");
   if(closeBtn) closeBtn.onclick=(e)=>{ e.stopPropagation(); hideOutputPopup(); };
   // Download button → PDF of whatever this popup is showing. Markdown reports
@@ -807,7 +967,7 @@ function showOutputPopup(anchor){
     if(dlText){
       dlBtn.style.display="";
       dlBtn.onclick=(e)=>{ e.stopPropagation();
-        _exportPdf(slug(title)+".pdf", title+" — output", pdfBody,
+        _exportPdf(slug(title)+".pdf", title, pdfBody,
                    ()=>_download(dlName||"output.txt", dlText, dlType)); };
     } else { dlBtn.style.display="none"; }
   }
@@ -850,7 +1010,7 @@ function _exportPdf(name, title, bodyHtml, fallback){
     `.pdfmeta{color:#6b7280;font-size:10px;margin:0 0 14px}`+
     `</style></head><body>`+
     `<h1>${esc(title)}</h1>`+
-    `<div class="pdfmeta">Product Researcher — generated ${new Date().toLocaleString()}</div>`+
+    `<div class="pdfmeta">Marketing Agent Team — ${esc(t('generated'))} ${new Date().toLocaleString(LANG==="zh"?"zh-CN":LANG==="es"?"es-ES":"en-US")}</div>`+
     bodyHtml+
     `</body></html>`;
   let win=null;
@@ -867,8 +1027,8 @@ function _exportPdf(name, title, bodyHtml, fallback){
 const STAGE_KEY={research:"s1", sourcing:"s2"};
 function setStatus(key,state){
   const el=$("#st-"+key); if(!el) return;
-  if(state==="idle"){ el.textContent="not started"; el.className="status ns"; return; }
-  el.textContent=state; el.className="status "+state;
+  if(state==="idle"){ el.textContent=t('notStarted'); el.className="status ns"; return; }
+  el.textContent=t(state)||state; el.className="status "+state;
 }
 function clearStatuses(){ ["orc","s1","s2","aud","comp","pred"].forEach(k=>setStatus(k,"idle")); }
 function finishWorking(){  // any still-"working" pill becomes finished
@@ -889,6 +1049,11 @@ function addEv(cls, ic, html){
 const esc = s => (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
 function fmtMs(ms){ if(!ms) return "—"; const s=ms/1000; return s<60?s.toFixed(1)+"s":(s/60).toFixed(1)+"m"; }
+
+// Run-status shown in the right bar — stored as an i18n key so switching
+// language re-renders it correctly.
+let statusKey="stIdle";
+function setRunStatus(key){ statusKey=key; $("#status").textContent=t(key); }
 
 async function checkHealth(){
   try{
@@ -932,10 +1097,10 @@ function launch(kind){
   $("#run").disabled=true; $("#source").disabled=true; $("#pipe").disabled=true;
   const orc=$("#av-orc"); if(orc) orc.classList.toggle("active", kind==="pipeline");
   const btn = kind==="pipeline" ? $("#pipe") : kind==="sourcing" ? $("#source") : $("#run");
-  btn.innerHTML='<span class="spin"></span> Running…';
-  $("#status").textContent="running"; $("#links").innerHTML="";
+  btn.innerHTML='<span class="spin"></span> '+esc(t('running'));
+  setRunStatus("stRunning"); $("#links").innerHTML="";
   ["s-turns","s-time","s-cost"].forEach(i=>$("#"+i).style.display="none");
-  tl.innerHTML=""; reportEl.innerHTML='<div class="empty">Working… the report will stream in.</div>';
+  tl.innerHTML=""; reportEl.innerHTML='<div class="empty">'+esc(t('rptWorking'))+'</div>';
 
   let url;
   if(kind==="pipeline"){
@@ -943,20 +1108,20 @@ function launch(kind){
     const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
     addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>${engLabel}</b> engine${tag}`+(srcSel?` · sourcing on <b>${esc(srcModel||srcProvider)}</b>`:""));
     url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&engine=${engine}&provider=${provider}&mock=${mock}`+
-        `&source_provider=${encodeURIComponent(srcProvider)}&source_model=${encodeURIComponent(srcModel)}`;
+        `&source_provider=${encodeURIComponent(srcProvider)}&source_model=${encodeURIComponent(srcModel)}&lang=${LANG}`;
   } else if(kind==="sourcing"){
     const soProvider = srcProvider || provider, soModel = srcSel ? srcModel : model;
     const tag = mock?" · <b>MOCK</b>":(soProvider!=="anthropic"?` · <b>${soProvider.toUpperCase()}</b>`:"");
     addEv("","🏭",`Sourcing suppliers for <b>${esc(cat)}</b> · ${esc(soModel||soProvider)}${tag}`);
-    url=`/api/sourcing?category=${encodeURIComponent(cat)}&model=${encodeURIComponent(soModel)}&provider=${soProvider}&mock=${mock}`;
+    url=`/api/sourcing?category=${encodeURIComponent(cat)}&model=${encodeURIComponent(soModel)}&provider=${soProvider}&mock=${mock}&lang=${LANG}`;
   } else {
     const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
     addEv("","▶",`Researching <b>${esc(cat)}</b> · top ${esc(top)} · ${esc(model)}${tag}`);
-    url=`/api/research?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}`;
+    url=`/api/research?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}&lang=${LANG}`;
   }
   es=new EventSource(url);
   es.onmessage= e=>handle(JSON.parse(e.data));
-  es.onerror=()=>{ if(running){addEv("err","⚠","Connection lost.");finish();} };
+  es.onerror=()=>{ if(running){addEv("err","⚠",esc(t('connLost')));finish();} };
 }
 
 let activeSub=null;
@@ -974,7 +1139,7 @@ function handle(ev){
       $("#graphStatus").textContent = "· running "+esc(ev.stage)+" stage";
       addEv("stage","—",`<b>${esc(ev.label||ev.stage)}</b>`);
       addLog("info","STAGE", ev.label||ev.stage);
-      $("#status").textContent="running";
+      setRunStatus("stRunning");
       break;
     case "start":
       if(researchPhase) setAgent("lead","active");
@@ -986,7 +1151,7 @@ function handle(ev){
       hadError=false; succeeded=false;              // the failed attempt was suppressed
       addEv("","🔄",`<b>${esc(ev.message)}</b>`);
       addLog("api","FALLBACK", ev.message);
-      $("#status").textContent="retrying via Gemini";
+      setRunStatus("stRetry");
       break;
     case "subagent":
       if(activeSub) setAgent(activeSub,"done");
@@ -1028,7 +1193,7 @@ function handle(ev){
       // but NEVER capture an error result as "output".
       if(ev.report && !ev.is_error){ if(researchPhase) researchReport=ev.report; else sourcingReport=ev.report; }
       if(!ev.is_error){ reportBuf = ev.report || reportBuf; } renderReport(true);
-      $("#status").textContent= ev.is_error ? "finished with errors" : "complete";
+      setRunStatus(ev.is_error ? "stErrors" : "stComplete");
       showStat("s-turns", ev.num_turns); showStat("s-time", fmtMs(ev.duration_ms));
       showStat("s-cost", ev.cost_usd!=null ? "$"+Number(ev.cost_usd).toFixed(4) : "—");
       addLinks(); addEv("","✅","Done.");
@@ -1062,7 +1227,7 @@ function handle(ev){
       GRAPH_NODES.forEach(n=>{ const el=$("#gn-"+n); if(el && el.classList.contains("active")) setGraphNode(n,null); });
       const oav=$("#av-orc"); if(oav) oav.classList.remove("active");
       addEv("err","❌",esc(ev.message)); addLog("error","ERROR", ev.message||"unknown error");
-      $("#status").textContent="error"; break;
+      setRunStatus("stError"); break;
     }
     case "done": finish(); break;
   }
@@ -1113,9 +1278,7 @@ function applySourceState(){
   btn.title = reportAvailable
     ? "Source suppliers from this category's saved research report"
     : "No saved report yet — clicking runs research first, then sources suppliers";
-  $("#sourceHint").textContent = reportAvailable
-    ? "Stage 2 ready — a research report exists for this category."
-    : "No report yet — Source suppliers will run research first, then source.";
+  $("#sourceHint").textContent = reportAvailable ? t('srcReady') : t('srcNot');
 }
 async function refreshSourceAvailability(){
   const cat=$("#cat").value.trim();
@@ -1184,7 +1347,7 @@ function updateProxyChip(j){
     ? `LLM fallback ready — proxy reachable at ${j.gemini_proxy_url}`
     : `Fallback configured but the proxy is NOT reachable at ${j.gemini_proxy_url}. Start it with ./run_proxy.sh`;
 }
-let appReady=false;
+let appReady=false, lastAuthInfo=null;
 function initApp(){
   if(appReady) return; appReady=true;
   checkHealth(); refreshSourceAvailability();
@@ -1195,20 +1358,21 @@ function initApp(){
 function showGate(show){ $("#authGate").style.display=show?"flex":"none"; }
 async function doAuth(mode){
   const email=$("#authEmail").value.trim(), password=$("#authPass").value;
-  if(!email||!password){ $("#authErr").textContent="Enter your email and password."; return; }
+  if(!email||!password){ $("#authErr").textContent=t('enterBoth'); return; }
   $("#authErr").textContent=""; $("#authLogin").disabled=true; $("#authSignup").disabled=true;
   try{
     const r=await fetch(mode==="login"?"/api/auth/login":"/api/auth/signup",
       {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
     const j=await r.json().catch(()=>({}));
-    if(!r.ok){ $("#authErr").textContent=j.error||"Something went wrong."; return; }
+    if(!r.ok){ $("#authErr").textContent=j.error||t('wrong'); return; }
     onAuthed(j);
-  }catch(e){ $("#authErr").textContent="Network error — is the server running?"; }
+  }catch(e){ $("#authErr").textContent=t('netErr'); }
   finally{ $("#authLogin").disabled=false; $("#authSignup").disabled=false; }
 }
 function onAuthed(info){
   showGate(false);
-  $("#userBox").innerHTML=`<span class="email">${esc(info.email)}</span><a id="logout">Log out</a>`;
+  lastAuthInfo=info;
+  $("#userBox").innerHTML=`<span class="email">${esc(info.email)}</span><a id="logout">${esc(t('logout'))}</a>`;
   $("#logout").addEventListener("click", async ()=>{ await fetch("/api/auth/logout",{method:"POST"}); location.reload(); });
   showVerifyBanner(info);
   initApp();
@@ -1217,18 +1381,18 @@ function showVerifyBanner(info){
   const b=$("#verifyBanner");
   if(!info || info.verified){ b.style.display="none"; return; }
   const msg = info.email_sent
-    ? `Please verify your email — we sent a link to <b>${esc(info.email)}</b>.`
-    : `Your email isn't verified yet.`;
+    ? t('verifySent').replace("{email}", esc(info.email))
+    : t('verifyNot');
   b.className="banner";
-  b.innerHTML=`<span>${msg}</span> <a id="resendV">Resend email</a>`;
+  b.innerHTML=`<span>${msg}</span> <a id="resendV">${esc(t('resend'))}</a>`;
   b.style.display="flex";
   $("#resendV").addEventListener("click", async ()=>{
-    const a=$("#resendV"); a.textContent="Sending…";
+    const a=$("#resendV"); a.textContent=t('sending');
     try{
       const r=await fetch("/api/auth/resend",{method:"POST"});
       const j=await r.json().catch(()=>({}));
-      a.textContent = r.ok ? (j.already_verified?"Already verified ✓":"Sent ✓") : (j.error||"Failed");
-    }catch(e){ a.textContent="Failed"; }
+      a.textContent = r.ok ? (j.already_verified?t('already'):t('sent')) : (j.error||t('failedWord'));
+    }catch(e){ a.textContent=t('failedWord'); }
   });
 }
 $("#authLogin").addEventListener("click", ()=>doAuth("login"));
@@ -1248,35 +1412,35 @@ function setAuthView(view){
   show("actMain", isLogin);
   show("authForgotSend", isForgot);
   show("authResetSubmit", isReset);
-  $("#authH").textContent = isLogin ? "Welcome" : isForgot ? "Reset your password" : "Set a new password";
+  $("#authH").textContent = isLogin ? t('welcome') : isForgot ? t('resetTitle') : t('newPassTitle');
   const fl=$("#authForgot");
   if(isReset){ fl.style.display="none"; }
-  else { fl.style.display=""; fl.textContent = isLogin ? "Forgot password?" : "Back to log in"; }
+  else { fl.style.display=""; fl.textContent = isLogin ? t('forgot') : t('backLogin'); }
 }
 $("#authForgot").addEventListener("click", ()=> setAuthView(authView==="login"?"forgot":"login"));
 async function sendForgot(){
   const email=$("#authEmail").value.trim();
-  if(!email){ $("#authErr").textContent="Enter your email."; return; }
+  if(!email){ $("#authErr").textContent=t('enterEmail'); return; }
   $("#authForgotSend").disabled=true;
   try{
     await fetch("/api/auth/forgot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
-    $("#authErr").textContent=""; $("#authMsg").textContent="If that email has an account, a reset link is on its way.";
-  }catch(e){ $("#authErr").textContent="Network error."; }
+    $("#authErr").textContent=""; $("#authMsg").textContent=t('resetSent');
+  }catch(e){ $("#authErr").textContent=t('netErr2'); }
   finally{ $("#authForgotSend").disabled=false; }
 }
 $("#authForgotSend").addEventListener("click", sendForgot);
 async function submitReset(){
   const p=$("#authNewPass").value, p2=$("#authNewPass2").value;
-  if(p.length<8){ $("#authErr").textContent="Password must be at least 8 characters."; return; }
-  if(p!==p2){ $("#authErr").textContent="Passwords don't match."; return; }
+  if(p.length<8){ $("#authErr").textContent=t('passMin'); return; }
+  if(p!==p2){ $("#authErr").textContent=t('passMismatch'); return; }
   $("#authResetSubmit").disabled=true;
   try{
     const r=await fetch("/api/auth/reset",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:resetToken,password:p})});
     const j=await r.json().catch(()=>({}));
-    if(!r.ok){ $("#authErr").textContent=j.error||"Could not reset password."; return; }
+    if(!r.ok){ $("#authErr").textContent=j.error||t('couldNotReset'); return; }
     history.replaceState(null,"",location.pathname);
-    setAuthView("login"); $("#authMsg").textContent="Password updated — please log in.";
-  }catch(e){ $("#authErr").textContent="Network error."; }
+    setAuthView("login"); $("#authMsg").textContent=t('passUpdated');
+  }catch(e){ $("#authErr").textContent=t('netErr2'); }
   finally{ $("#authResetSubmit").disabled=false; }
 }
 $("#authResetSubmit").addEventListener("click", submitReset);
@@ -1284,7 +1448,7 @@ $("#authNewPass2").addEventListener("keydown", e=>{ if(e.key==="Enter") submitRe
 
 function flashVerified(){
   const b=$("#verifyBanner");
-  b.className="banner success"; b.innerHTML="<span>✓ Email verified — thanks!</span>";
+  b.className="banner success"; b.innerHTML="<span>"+esc(t('verifiedThanks'))+"</span>";
   b.style.display="flex";
   setTimeout(()=>{ b.style.display="none"; }, 5000);
   history.replaceState(null,"",location.pathname);
@@ -1305,6 +1469,57 @@ async function boot(){
   }catch(e){}
   setAuthView("login"); showGate(true); $("#authEmail").focus();
 }
+
+// --- apply the selected language to the whole UI ---
+function applyLang(){
+  document.documentElement.lang = LANG==="zh" ? "zh-CN" : LANG;
+  localStorage.setItem("uiLang", LANG);
+  $("#langSel").value=LANG; $("#langSelHdr").value=LANG;
+  $("#langLabel").textContent=t('language');
+  // auth card
+  $("#authPass").placeholder=t('passPh');
+  $("#authNewPass").placeholder=t('newPassPh');
+  $("#authNewPass2").placeholder=t('newPass2Ph');
+  $("#authLogin").textContent=t('login'); $("#authSignup").textContent=t('signup');
+  $("#authForgotSend").textContent=t('sendReset'); $("#authResetSubmit").textContent=t('setNewPass');
+  setAuthView(authView);
+  // header + user box
+  $("#headerSub").innerHTML=t('sub');
+  const lo=$("#logout"); if(lo) lo.textContent=t('logout');
+  // controls
+  $("#cfgTitle").textContent=t('cfg');
+  $("#lblCat").textContent=t('cat'); $("#cat").placeholder=t('catPh');
+  $("#lblTop").textContent=t('topN'); $("#lblRunMode").textContent=t('runMode');
+  $("#paidPh").textContent=t('paidPh'); $("#freePh").textContent=t('freePh');
+  $("#lblLeadModel").textContent=t('leadModel'); $("#lblSrcModel").textContent=t('srcModel');
+  $("#srcSame").textContent=t('sameAsResearch'); $("#lblEngine").textContent=t('engine');
+  $("#modeHint").innerHTML=t(MODE_HINTS[runMode]||MODE_HINTS.anthropic);
+  setEngine(engine);
+  $("#pipeHint").textContent=t('pipeHint'); $("#orRow").textContent=t('orRow');
+  applySourceState();
+  if(!running){
+    $("#pipe").innerHTML=BTN_HTML.pipe; $("#run").innerHTML=BTN_HTML.run; $("#source").innerHTML=BTN_HTML.source;
+    renderTeam(); clearStatuses();
+    Object.entries(agentState).forEach(([id,st])=>setAgent(id,st));
+  }
+  // empty states + right bar
+  const te=tl.querySelector(".empty"); if(te) te.innerHTML=t('tlEmpty');
+  const re=reportEl.querySelector(".empty"); if(re) re.textContent = running ? t('rptWorking') : t('rptEmpty');
+  const sl=$("#statLbl"); if(sl&&sl.firstChild) sl.firstChild.textContent=t('statusLbl');
+  const stt=$("#s-turns"); if(stt&&stt.firstChild) stt.firstChild.textContent=t('turns');
+  const sti=$("#s-time"); if(sti&&sti.firstChild) sti.firstChild.textContent=t('time');
+  const stc=$("#s-cost"); if(stc&&stc.firstChild) stc.firstChild.textContent=t('cost');
+  setRunStatus(statusKey);
+  // log bar
+  $("#logToggle").textContent=$("#logPanel").classList.contains("open")?t('hideLog'):t('showLog');
+  $("#logClear").textContent=t('clear');
+  if(logLines.length) $("#logMeta").textContent=logLines.length+" "+t('events');
+  renderLog();
+}
+function setLang(l){ if(!I18N[l]) l="en"; LANG=l; applyLang(); }
+$("#langSel").addEventListener("change", e=>setLang(e.target.value));
+$("#langSelHdr").addEventListener("change", e=>setLang(e.target.value));
+applyLang();
 boot();
 </script>
 </body>
