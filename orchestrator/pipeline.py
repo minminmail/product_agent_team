@@ -28,6 +28,7 @@ async def run_pipeline(
     force_env: dict | None = None,
     sourcing_model: str | None = None,
     sourcing_force_env: dict | None = None,
+    lang: str = "en",
 ) -> AsyncIterator[dict]:
     """Run research, then (if it succeeded) supplier sourcing on its output.
     force_env routes both stages through the proxy (Groq button).
@@ -45,7 +46,7 @@ async def run_pipeline(
         research_stream = research(category, top, reports_dir, model)
     else:
         from product_researcher.events import run_stream as research
-        research_stream = research(category, top, reports_dir, model, force_env=force_env)
+        research_stream = research(category, top, reports_dir, model, force_env=force_env, lang=lang)
 
     research_ok = False
     research_report = ""
@@ -81,7 +82,7 @@ async def run_pipeline(
     else:
         from supplier_sourcer.events import run_stream as sourcing
         sourcing_stream = sourcing(category, reports_dir, reports_dir, s_model,
-                                   source_top, per_product, force_env=s_force_env)
+                                   source_top, per_product, force_env=s_force_env, lang=lang)
 
     async for ev in sourcing_stream:
         yield ev

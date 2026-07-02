@@ -304,6 +304,7 @@ async def research(
     model: str = Query("haiku"),
     provider: str = Query("anthropic", description="'groq' to force the free proxy."),
     mock: bool = Query(False, description="Run fully offline with canned data (no API key/credits)."),
+    lang: str = Query("en", description="Report language: en | zh | es."),
 ) -> StreamingResponse:
     """Server-Sent Events stream of the research pipeline."""
 
@@ -325,7 +326,7 @@ async def research(
                     yield _sse({"type": "error",
                                 "message": "ANTHROPIC_API_KEY is not set. Tip: use a Free "
                                            "provider (Groq / Mock) instead."}); return
-                async for ev in run_stream(category, top, REPORTS_DIR, run_model, force_env=force_env):
+                async for ev in run_stream(category, top, REPORTS_DIR, run_model, force_env=force_env, lang=lang):
                     yield _sse(ev)
         except Exception as exc:  # never leave the stream hanging
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
@@ -347,6 +348,7 @@ async def sourcing(
     model: str = Query("haiku"),
     provider: str = Query("anthropic", description="'groq' to force the free proxy."),
     mock: bool = Query(False, description="Run fully offline with canned suppliers (no API key/credits)."),
+    lang: str = Query("en", description="Report language: en | zh | es."),
 ) -> StreamingResponse:
     """SSE stream of the INDEPENDENT supplier-sourcing agent.
 
@@ -372,7 +374,7 @@ async def sourcing(
                     yield _sse({"type": "error",
                                 "message": "ANTHROPIC_API_KEY is not set. Tip: use a Free "
                                            "provider (Groq / Mock) instead."}); return
-                async for ev in source_stream(category, REPORTS_DIR, REPORTS_DIR, run_model, top, per, force_env=force_env):
+                async for ev in source_stream(category, REPORTS_DIR, REPORTS_DIR, run_model, top, per, force_env=force_env, lang=lang):
                     yield _sse(ev)
         except Exception as exc:
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
@@ -398,6 +400,7 @@ async def pipeline(
     source_model: str = Query("", description="Model for Stage 2 sourcing; blank = same as research."),
     engine: str = Query("", description="'langgraph' to use the LangGraph engine; else deterministic."),
     mock: bool = Query(False, description="Run the whole pipeline offline (no API key/credits)."),
+    lang: str = Query("en", description="Report language: en | zh | es."),
 ) -> StreamingResponse:
     """SSE stream of the orchestrator (Amanda): research, then supplier sourcing."""
 
@@ -443,7 +446,7 @@ async def pipeline(
                 from orchestrator.pipeline import run_pipeline
             async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, run_model, mock,
                                          force_env=force_env, sourcing_model=sourcing_model,
-                                         sourcing_force_env=sourcing_force_env):
+                                         sourcing_force_env=sourcing_force_env, lang=lang):
                 yield _sse(ev)
         except Exception as exc:
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})

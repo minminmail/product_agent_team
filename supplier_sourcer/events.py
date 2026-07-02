@@ -42,7 +42,8 @@ SUPPLIERS_PER_PRODUCT = 5
 
 
 def build_lead_prompt(
-    category: str, products: list, output_dir: str, per_product: int
+    category: str, products: list, output_dir: str, per_product: int,
+    lang: str = "en",
 ) -> str:
     """The sourcing lead's brief, with the chosen products embedded."""
     listing = "\n".join(
@@ -81,7 +82,13 @@ Finally, output a clean Markdown report to me:
     before ordering).
 
 Be concrete and evidence-driven. Do not fabricate suppliers, certifications,
-contact details, or sources."""
+contact details, or sources.""" + _lang_instruction(lang)
+
+
+def _lang_instruction(lang: str | None) -> str:
+    """Same language directive as the research stage (kept import-free here)."""
+    from product_researcher.events import lang_instruction
+    return lang_instruction(lang)
 
 
 def _make_options(model: str, output_dir: str, env: dict | None = None):
@@ -292,6 +299,7 @@ async def run_stream(
     top: int = SOURCE_TOP_PRODUCTS,
     per_product: int = SUPPLIERS_PER_PRODUCT,
     force_env: dict | None = None,
+    lang: str = "en",
 ) -> AsyncIterator[dict]:
     """Run the sourcing agent against a saved research report, yielding events.
     force_env: route the whole run through the proxy (Groq button)."""
@@ -322,7 +330,7 @@ async def run_stream(
         "model": model,
     }
 
-    prompt = build_lead_prompt(category, products, output_dir, per_product)
+    prompt = build_lead_prompt(category, products, output_dir, per_product, lang=lang)
 
     if force_env is not None:
         if not _proxy_reachable(force_env.get("ANTHROPIC_BASE_URL", "")):

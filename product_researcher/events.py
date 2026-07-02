@@ -37,7 +37,25 @@ from .agents import AGENTS
 from .tools import TOOL_SAVE, TOOL_SCORE, research_tools_server
 
 
-def build_lead_prompt(category: str, top: int, output_dir: str) -> str:
+# Report/output languages the UI can request. "en" is the default (no extra
+# instruction); anything else appends a language directive to every lead prompt.
+LANG_NAMES = {"en": "English", "zh": "Simplified Chinese (简体中文)", "es": "Spanish (Español)"}
+
+
+def lang_instruction(lang: str | None) -> str:
+    """An instruction telling the agents to produce their report in `lang`.
+    Empty for English/unknown so existing prompts are unchanged."""
+    lang = (lang or "en").lower()
+    name = LANG_NAMES.get(lang)
+    if not name or lang == "en":
+        return ""
+    return (f"\n\nIMPORTANT — OUTPUT LANGUAGE: Write ALL user-facing output — the final "
+            f"Markdown report, every heading, table header, verdict, rationale and prose — "
+            f"in {name}. Product/brand names may stay in their original language. "
+            f"Keep tool names and JSON field KEYS in English (translate field values).")
+
+
+def build_lead_prompt(category: str, top: int, output_dir: str, lang: str = "en") -> str:
     """The lead agent's task brief. Single source of truth for the pipeline."""
     return f"""You lead a product-research team. Goal: find and predict the products
 most likely to become popular in the category: "{category}".
@@ -77,7 +95,7 @@ Finally, output a clean Markdown report to me with these sections:
 Be concrete and evidence-driven. Do not fabricate sources.
 
 (Supplier sourcing for the top products is handled by a separate agent — the
-`supplier_sourcer` package — which reads the predictions_*.json you save here.)"""
+`supplier_sourcer` package — which reads the predictions_*.json you save here.)""" + lang_instruction(lang)
 
 
 _DEFAULT_TOOLS = ["Task", "Agent", "WebSearch", TOOL_SCORE, TOOL_SAVE]
@@ -356,6 +374,7 @@ async def run_stream(
     output_dir: str = "./reports",
     model: str = "sonnet",
     force_env: dict | None = None,
+    lang: str = "en",
 ) -> AsyncIterator[dict]:
     """Run the pipeline, yielding UI events. If the primary (Anthropic) attempt
     hits a fatal API error such as a too-low credit balance, automatically
@@ -365,7 +384,7 @@ async def run_stream(
     through the proxy from the start — no Anthropic call, no fallback."""
     output_dir = os.path.abspath(output_dir)
     os.makedirs(output_dir, exist_ok=True)
-    prompt = build_lead_prompt(category, top, output_dir)
+    prompt = build_lead_prompt(category, top, output_dir, lang=lang)
 
     yield {"type": "start", "category": category, "top": top, "model": model}
 
