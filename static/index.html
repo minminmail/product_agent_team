@@ -70,6 +70,12 @@
        cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .histsec button:hover{filter:brightness(1.12)}
   .histsec button.on{box-shadow:0 0 0 2px var(--accent2)}
+  /* "Clear page log": same size/shape as the filter dropdowns (¼ width). */
+  .histsec #logClear{flex:0 0 25%;width:25%;min-width:0;margin-top:22px;
+       background:var(--bg);color:var(--muted);border:1px solid var(--border);
+       border-radius:7px;padding:7px 9px;font-size:12.5px;font-weight:600;
+       cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .histsec #logClear:hover{color:var(--text);border-color:var(--accent);filter:none}
   /* Drag grip on top of each slide-up panel: drag DOWN to shrink it (so it
      doesn't cover the agent area), drag UP to enlarge it. */
   .panelgrip{position:fixed;left:0;right:0;height:14px;display:none;z-index:72;
@@ -77,6 +83,12 @@
   .panelgrip::after{content:"";position:absolute;left:50%;top:4px;transform:translateX(-50%);
        width:72px;height:6px;border-radius:3px;background:var(--border)}
   .panelgrip:hover::after,.panelgrip.dragging::after{background:var(--accent)}
+  /* Always-visible close chip on the panel's grip bar — the toggle button in
+     the page can be covered by the open panel, this never is. */
+  .grip-close{position:absolute;right:14px;top:1px;width:auto;line-height:1;
+       background:var(--panel2);color:var(--muted);border:1px solid var(--border);
+       border-radius:999px;font-size:11px;font-weight:700;padding:4px 12px;cursor:pointer}
+  .grip-close:hover{color:#fff;background:var(--red);border-color:var(--red)}
   /* Search history — slide-up panel above the bottom bar. */
   .histpanel{position:fixed;left:0;right:0;bottom:38px;height:58vh;overflow:auto;display:none;z-index:71;
        background:#0b0f14;border-top:1px solid var(--border);padding:12px 18px;font-size:13px}
@@ -478,6 +490,7 @@
           <option value="model" id="hfModel">Model name</option>
         </select>
         <select id="histValue" style="display:none"></select>
+        <button id="logClear" type="button">Clear page log</button>
       </div>
     </div>
 
@@ -500,13 +513,12 @@
 </div>
 
 <!-- Activity log + search history: slide-up panels + bottom bar (end of the UI) -->
-<div class="panelgrip" id="histGrip" title="Drag to resize"></div>
+<div class="panelgrip" id="histGrip" title="Drag to resize"><button type="button" class="grip-close" id="histClose">✕</button></div>
 <div class="histpanel" id="histPanel"></div>
-<div class="panelgrip" id="logGrip" title="Drag to resize"></div>
+<div class="panelgrip" id="logGrip" title="Drag to resize"><button type="button" class="grip-close" id="logClose">✕</button></div>
 <div class="logpanel" id="logPanel"><div class="logempty">No activity yet — run the pipeline to see calls here.</div></div>
 <div class="logbar">
   <span class="logmeta" id="logMeta"></span>
-  <button id="logClear" class="logbtn ghost" style="margin-left:auto">Clear</button>
 </div>
 
 <script>
@@ -545,7 +557,7 @@ en:{
   turns:"Turns: ", time:"Time: ", cost:"Cost: ",
   rptEmpty:"The final ranked report appears here.", rptWorking:"Working… the report will stream in.",
   notStarted:"not started", waiting:"waiting", working:"working", finished:"finished", failed:"failed", done:"done",
-  showLog:"📋 Show log", hideLog:"📋 Hide log", clear:"Clear", events:"events",
+  showLog:"📋 Show log", hideLog:"📋 Hide log", clear:"Clear page log", events:"events",
   logEmpty:"No activity yet — run the pipeline to see calls here.",
   outBtn:"output", outWord:"output", closeHint:"Click outside, or ✕, to close",
   whyFailed:"⚠ Why this failed", dismiss:"Click anywhere to dismiss", noDetail:"No failure detail was reported.",
@@ -601,7 +613,7 @@ zh:{
   turns:"轮次：", time:"用时：", cost:"成本：",
   rptEmpty:"最终排名报告将显示在这里。", rptWorking:"处理中……报告将实时显示。",
   notStarted:"未开始", waiting:"等待中", working:"工作中", finished:"已完成", failed:"失败", done:"完成",
-  showLog:"📋 显示日志", hideLog:"📋 隐藏日志", clear:"清除", events:"条事件",
+  showLog:"📋 显示日志", hideLog:"📋 隐藏日志", clear:"清理页面日志", events:"条事件",
   logEmpty:"暂无活动——运行流水线后可在此查看调用。",
   outBtn:"输出", outWord:"输出", closeHint:"点击外部或 ✕ 关闭",
   whyFailed:"⚠ 失败原因", dismiss:"点击任意处关闭", noDetail:"未报告失败详情。",
@@ -658,7 +670,7 @@ es:{
   turns:"Turnos: ", time:"Tiempo: ", cost:"Coste: ",
   rptEmpty:"El informe final aparecerá aquí.", rptWorking:"Trabajando… el informe llegará en streaming.",
   notStarted:"sin iniciar", waiting:"en espera", working:"trabajando", finished:"terminado", failed:"falló", done:"hecho",
-  showLog:"📋 Mostrar registro", hideLog:"📋 Ocultar registro", clear:"Limpiar", events:"eventos",
+  showLog:"📋 Mostrar registro", hideLog:"📋 Ocultar registro", clear:"Limpiar registro", events:"eventos",
   logEmpty:"Sin actividad — ejecuta el pipeline para ver llamadas aquí.",
   outBtn:"salida", outWord:"salida", closeHint:"Haz clic fuera, o ✕, para cerrar",
   whyFailed:"⚠ Por qué falló", dismiss:"Haz clic en cualquier lugar para cerrar", noDetail:"No se reportó detalle del fallo.",
@@ -1621,6 +1633,22 @@ function setupPanelResize(panel, grip, storeKey){
 }
 setupPanelResize($("#histPanel"), $("#histGrip"), "histPanelH");
 setupPanelResize($("#logPanel"),  $("#logGrip"),  "logPanelH");
+// Close chips on the grip bars (the in-page toggle buttons can be covered by
+// the open panel itself; these chips are always on top of the panel).
+["histClose","logClose"].forEach(id=>{
+  $("#"+id).addEventListener("pointerdown", e=>e.stopPropagation()); // don't start a drag
+});
+$("#histClose").addEventListener("click", e=>{
+  e.stopPropagation();
+  $("#histPanel").classList.remove("open");
+  $("#histToggle").classList.remove("on");
+});
+$("#logClose").addEventListener("click", e=>{
+  e.stopPropagation();
+  $("#logPanel").classList.remove("open");
+  $("#logToggle").classList.remove("on");
+  $("#logToggle").textContent=t('showLog');
+});
 $("#pipe").addEventListener("click", ()=>launch("pipeline"));
 $("#run").addEventListener("click", ()=>launch("research"));
 // "Source suppliers": if a research report exists for this category, source
