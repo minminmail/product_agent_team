@@ -73,7 +73,11 @@ Do this:
 Finally, output a clean Markdown report to me:
   # Supplier Shortlist: {category}
   - a 1-2 sentence summary
-  - for each product, a subheading with the product name and a Markdown table of
+  - for each product, a subheading with the product name, then up to 3 Markdown
+    images on one line — ![<product> photo](<URL>) — using ONLY direct product-image
+    URLs (.jpg/.png/.webp) actually found during research (e.g. manufacturer or
+    retailer listing images). If none were found, skip the images line. NEVER
+    invent or construct an image URL. Then a Markdown table of
     its suppliers: Rank | Supplier | Country | Score | Tier | Certifications |
     Phone | Email | Website
   - under each table, a short "Contact" list per supplier with its full address

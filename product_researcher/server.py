@@ -34,7 +34,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import auth, mailer
+from . import auth, history, mailer
 from .mock import run_stream_mock
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -46,6 +46,7 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 # Override with PR_USERS_DB if the default location can't host a SQLite file.
 USERS_DB = os.environ.get("PR_USERS_DB", os.path.join(BASE_DIR, "users.db"))
 auth.init_db(USERS_DB)
+history.init_db(USERS_DB)   # run-history tables live in the same SQLite file
 SESSION_COOKIE = "session"
 
 # Only hard-block unverified users from running agents when explicitly opted in
@@ -309,27 +310,40 @@ async def research(
     """Server-Sent Events stream of the research pipeline."""
 
     async def event_source():
+        rec = None
         try:
-            _, gate = _user_can_run(request)
+            email, gate = _user_can_run(request)
             if gate:
                 yield _sse({"type": "error", "message": gate})
                 return
+            rec = history.RunRecorder(email, "research", {
+                "category": category, "top": top, "provider": provider,
+                "model": model, "lang": lang, "mock": mock})
             if mock:
                 async for ev in run_stream_mock(category, top, REPORTS_DIR, model):
+                    rec.observe(ev)
                     yield _sse(ev)
             else:
                 from .events import run_stream
                 force_env, run_model, perr = _provider_setup(provider, model)
                 if perr:
+                    rec.observe({"type": "error", "message": perr})
                     yield _sse({"type": "error", "message": perr}); return
                 if provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
-                    yield _sse({"type": "error",
-                                "message": "ANTHROPIC_API_KEY is not set. Tip: use a Free "
-                                           "provider (Groq / Mock) instead."}); return
+                    msg = ("ANTHROPIC_API_KEY is not set. Tip: use a Free "
+                           "provider (Groq / Mock) instead.")
+                    rec.observe({"type": "error", "message": msg})
+                    yield _sse({"type": "error", "message": msg}); return
                 async for ev in run_stream(category, top, REPORTS_DIR, run_model, force_env=force_env, lang=lang):
+                    rec.observe(ev)
                     yield _sse(ev)
         except Exception as exc:  # never leave the stream hanging
+            if rec:
+                rec.observe({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+        finally:
+            if rec:
+                rec.finish()
         yield _sse({"type": "done"})
 
     return StreamingResponse(
@@ -356,28 +370,41 @@ async def sourcing(
     """
 
     async def event_source():
+        rec = None
         try:
-            _, gate = _user_can_run(request)
+            email, gate = _user_can_run(request)
             if gate:
                 yield _sse({"type": "error", "message": gate})
                 return
+            rec = history.RunRecorder(email, "sourcing", {
+                "category": category, "top": top, "provider": provider,
+                "model": model, "lang": lang, "mock": mock})
             if mock:
                 from supplier_sourcer.mock import run_stream_mock as source_mock
                 async for ev in source_mock(category, REPORTS_DIR, REPORTS_DIR, model, top, per):
+                    rec.observe(ev)
                     yield _sse(ev)
             else:
                 from supplier_sourcer.events import run_stream as source_stream
                 force_env, run_model, perr = _provider_setup(provider, model)
                 if perr:
+                    rec.observe({"type": "error", "message": perr})
                     yield _sse({"type": "error", "message": perr}); return
                 if provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
-                    yield _sse({"type": "error",
-                                "message": "ANTHROPIC_API_KEY is not set. Tip: use a Free "
-                                           "provider (Groq / Mock) instead."}); return
+                    msg = ("ANTHROPIC_API_KEY is not set. Tip: use a Free "
+                           "provider (Groq / Mock) instead.")
+                    rec.observe({"type": "error", "message": msg})
+                    yield _sse({"type": "error", "message": msg}); return
                 async for ev in source_stream(category, REPORTS_DIR, REPORTS_DIR, run_model, top, per, force_env=force_env, lang=lang):
+                    rec.observe(ev)
                     yield _sse(ev)
         except Exception as exc:
+            if rec:
+                rec.observe({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+        finally:
+            if rec:
+                rec.finish()
         yield _sse({"type": "done"})
 
     return StreamingResponse(
@@ -405,11 +432,17 @@ async def pipeline(
     """SSE stream of the orchestrator (Amanda): research, then supplier sourcing."""
 
     async def event_source():
+        rec = None
         try:
-            _, gate = _user_can_run(request)
+            email, gate = _user_can_run(request)
             if gate:
                 yield _sse({"type": "error", "message": gate})
                 return
+            rec = history.RunRecorder(email, "pipeline", {
+                "category": category, "top": top, "provider": provider,
+                "model": model, "source_provider": source_provider,
+                "source_model": source_model, "engine": engine or "standard",
+                "lang": lang, "mock": mock})
             force_env = None
             run_model = model
             sourcing_model = None          # None → run_pipeline reuses the research model
@@ -417,20 +450,24 @@ async def pipeline(
             if not mock:
                 force_env, run_model, perr = _provider_setup(provider, model)
                 if perr:
+                    rec.observe({"type": "error", "message": perr})
                     yield _sse({"type": "error", "message": perr}); return
                 if provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
-                    yield _sse({"type": "error",
-                                "message": "ANTHROPIC_API_KEY is not set. Tip: use a Free "
-                                           "provider (Groq / Mock) instead."}); return
+                    msg = ("ANTHROPIC_API_KEY is not set. Tip: use a Free "
+                           "provider (Groq / Mock) instead.")
+                    rec.observe({"type": "error", "message": msg})
+                    yield _sse({"type": "error", "message": msg}); return
                 # Optional Stage 2 (sourcing) override — a different model/provider
                 # than research (e.g. keep research cheap on DeepSeek, source on Anthropic).
                 if source_provider.strip():
                     sourcing_force_env, sourcing_model, s_perr = _provider_setup(source_provider, source_model)
                     if s_perr:
+                        rec.observe({"type": "error", "message": "Sourcing model — " + s_perr})
                         yield _sse({"type": "error", "message": "Sourcing model — " + s_perr}); return
                     if source_provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
-                        yield _sse({"type": "error",
-                                    "message": "Sourcing model needs ANTHROPIC_API_KEY set."}); return
+                        msg = "Sourcing model needs ANTHROPIC_API_KEY set."
+                        rec.observe({"type": "error", "message": msg})
+                        yield _sse({"type": "error", "message": msg}); return
             # Engine selection: explicit ?engine=langgraph, else USE_LANGGRAPH env.
             use_langgraph = (engine.strip().lower() == "langgraph") or (
                 engine == "" and
@@ -439,17 +476,24 @@ async def pipeline(
                 try:
                     from orchestrator.graph import run_pipeline_graph as run_pipeline
                 except ImportError:
-                    yield _sse({"type": "error",
-                                "message": "LangGraph engine isn't installed. Run: pip install langgraph"})
+                    msg = "LangGraph engine isn't installed. Run: pip install langgraph"
+                    rec.observe({"type": "error", "message": msg})
+                    yield _sse({"type": "error", "message": msg})
                     return
             else:
                 from orchestrator.pipeline import run_pipeline
             async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, run_model, mock,
                                          force_env=force_env, sourcing_model=sourcing_model,
                                          sourcing_force_env=sourcing_force_env, lang=lang):
+                rec.observe(ev)
                 yield _sse(ev)
         except Exception as exc:
+            if rec:
+                rec.observe({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
             yield _sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+        finally:
+            if rec:
+                rec.finish()
         yield _sse({"type": "done"})
 
     return StreamingResponse(
@@ -457,6 +501,37 @@ async def pipeline(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# --- Search history (stored per user in SQLite) ------------------------------
+
+@app.get("/api/history")
+async def history_list(request: Request, limit: int = Query(50, ge=1, le=200)) -> JSONResponse:
+    """List the signed-in user's past runs (parameters + status), newest first."""
+    email = _current_user(request)
+    if not email:
+        return JSONResponse({"error": "Please sign in."}, status_code=401)
+    return JSONResponse({"runs": history.list_runs(email, limit)})
+
+
+@app.get("/api/history/{run_id}")
+async def history_detail(run_id: int, request: Request) -> JSONResponse:
+    """Full detail of one run: parameters, per-agent outputs, final reports."""
+    email = _current_user(request)
+    if not email:
+        return JSONResponse({"error": "Please sign in."}, status_code=401)
+    run = history.get_run(email, run_id)
+    if not run:
+        return JSONResponse({"error": "Not found."}, status_code=404)
+    return JSONResponse(run)
+
+
+@app.delete("/api/history/{run_id}")
+async def history_delete(run_id: int, request: Request) -> JSONResponse:
+    email = _current_user(request)
+    if not email:
+        return JSONResponse({"error": "Please sign in."}, status_code=401)
+    return JSONResponse({"deleted": history.delete_run(email, run_id)})
 
 
 @app.get("/api/report/{filename}")

@@ -63,7 +63,10 @@ most likely to become popular in the category: "{category}".
 Run this pipeline using your subagents (delegate with the Task tool):
 
 1. Call the `trend-scout` subagent to gather 8-15 specific emerging candidate
-   products in this category, each with a rising signal and a cited source.
+   products in this category, each with a rising signal and a cited source. It
+   should ALSO note, per candidate, up to 3 direct product-image URLs
+   (.jpg/.png/.webp — e.g. Amazon listing images, manufacturer or retailer CDN
+   images) when such URLs actually appear in its search results.
 2. Call the `market-analyst` subagent to score every candidate on the five
    dimensions (demand, growth, margin, competition, feasibility, 0-10 each) and
    to research pricing (typical price, range, position, willingness to pay).
@@ -84,6 +87,13 @@ Finally, output a clean Markdown report to me with these sections:
   # Product Predictions: {category}
   - a 2-3 sentence executive summary
   - a Markdown table of the top {top}: Rank | Product | Score | Verdict | Price | Why
+  - a "Product images" section: for EACH top product, a bolded product-name line
+    followed by up to 3 Markdown images on one line:
+    ![<product> photo 1](<URL>) ![<product> photo 2](<URL>) ![<product> photo 3](<URL>).
+    Use ONLY direct image URLs (.jpg/.png/.webp) that actually appeared during the
+    team's research. If fewer than 3 verified image URLs exist for a product,
+    include fewer (or note "no verified images found"). NEVER invent, guess, or
+    construct an image URL.
   - a "Per-product scores & pricing" section with TWO tables carrying the
     market-analyst's data for every product:
       1. sub-scores: Product | Demand | Growth | Margin | Competition | Feasibility | Opportunity (0-100)

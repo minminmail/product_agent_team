@@ -69,7 +69,11 @@ def _trend_prompt(category: str) -> str:
     return (
         f"Call the `trend-scout` subagent to find 8-15 specific emerging candidate "
         f'products in the category "{category}", each with a rising signal and a '
-        f"cited source. Return its numbered candidate list verbatim."
+        f"cited source. For each candidate it should ALSO list up to 3 direct "
+        f"product-image URLs (.jpg/.png/.webp — e.g. Amazon listing images, "
+        f"manufacturer or retailer CDN images) when such URLs actually appear in "
+        f"its search results — it must NEVER invent or construct an image URL. "
+        f"Return its numbered candidate list (with the image URLs) verbatim."
     )
 
 
@@ -118,10 +122,11 @@ def _cap(text: str, limit: int = 2500) -> str:
 
 def _predictor_prompt(category: str, top: int, output_dir: str,
                       analysis_text: str, audience_text: str,
-                      competitor_text: str) -> str:
+                      competitor_text: str, candidates_text: str = "") -> str:
     from product_researcher.tools import TOOL_SAVE, TOOL_SCORE
-    analysis_text, audience_text, competitor_text = (
-        _cap(analysis_text), _cap(audience_text), _cap(competitor_text))
+    analysis_text, audience_text, competitor_text, candidates_text = (
+        _cap(analysis_text), _cap(audience_text), _cap(competitor_text),
+        _cap(candidates_text))
     return (
         f"Call the `predictor` subagent to turn the market-analyst's sub-scores "
         f"below into final 0-100 opportunity scores (it must use the {TOOL_SCORE} "
@@ -131,12 +136,17 @@ def _predictor_prompt(category: str, top: int, output_dir: str,
         f"growth, margin, competition, feasibility), pricing).\n\n"
         f"Finally output a clean Markdown report with: an executive summary; a "
         f"table of the top {top} (Rank | Product | Score | Verdict | Price | Why); "
+        f"a 'Product images' section — for each top product a bolded name line plus "
+        f"up to 3 Markdown images ![<product> photo](<URL>) using ONLY direct image "
+        f"URLs present in the context below (omit products with none; NEVER invent "
+        f"an image URL); "
         f"a 'Per-product scores & pricing' section with TWO tables covering every "
         f"product — (1) Product | Demand | Growth | Margin | Competition | "
         f"Feasibility | Opportunity, using the market-analyst's 0-10 sub-scores, "
         f"and (2) Product | Typical price | Range | Position | Willingness to pay; "
         f"an 'Audience & personas' section; a 'Competitive landscape' section; and "
         f"a short 'Methodology & caveats' note.\n\n"
+        f"=== Candidates (incl. product-image URLs found by trend-scout) ===\n{candidates_text}\n\n"
         f"=== Market analysis ===\n{analysis_text}\n\n"
         f"=== Audience & personas ===\n{audience_text}\n\n"
         f"=== Competitive landscape ===\n{competitor_text}\n"
@@ -301,7 +311,8 @@ def _build_graph(emit):
         async for ev in run_segment(
             _predictor_prompt(state["category"], state["top"], state["reports_dir"],
                               state.get("analysis_text", ""), state.get("audience_text", ""),
-                              state.get("competitor_text", "")) + _lang_note(state),
+                              state.get("competitor_text", ""),
+                              state.get("candidates_text", "")) + _lang_note(state),
             state["model"], state["reports_dir"], text,
             force_env=state.get("force_env"), only_agent="predictor",
         ):
