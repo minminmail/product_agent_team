@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#131a26"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#58a6ff"/>
+      <stop offset="1" stop-color="#bc8cff"/>
+    </linearGradient>
+    <!-- little bug used in several diagrams -->
+    <g id="bug">
+      <ellipse cx="0" cy="3" rx="11" ry="14" fill="#f85149"/>
+      <circle cx="0" cy="-13" r="6.5" fill="#f85149"/>
+      <line x1="0" y1="-8" x2="0" y2="16" stroke="#0d1117" stroke-width="2"/>
+      <line x1="-10" y1="-4" x2="-18" y2="-9" stroke="#f85149" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="-11" y1="3" x2="-19" y2="3" stroke="#f85149" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="-10" y1="10" x2="-18" y2="15" stroke="#f85149" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="10" y1="-4" x2="18" y2="-9" stroke="#f85149" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="11" y1="3" x2="19" y2="3" stroke="#f85149" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="10" y1="10" x2="18" y2="15" stroke="#f85149" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="-4" y1="-18" x2="-8" y2="-24" stroke="#f85149" stroke-width="2" stroke-linecap="round"/>
+      <line x1="4" y1="-18" x2="8" y2="-24" stroke="#f85149" stroke-width="2" stroke-linecap="round"/>
+    </g>
+  </defs>
+  <rect width="1080" height="1350" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1080" height="10" fill="url(#accent)"/>
+
+  <!-- Title -->
+  <text x="70" y="105" font-family="sans-serif" font-size="46" font-weight="bold" fill="#e6edf3">How to Fix Bugs with Claude</text>
+  <text x="70" y="150" font-family="sans-serif" font-size="24" fill="#8b949e">A product developer's 7-step playbook</text>
+  <line x1="70" y1="180" x2="1010" y2="180" stroke="#2a3340" stroke-width="2"/>
+
+  <!-- ================= Step 1 : speech bubble stating the bug ================= -->
+  <g>
+    <circle cx="105" cy="255" r="30" fill="#1f6feb"/>
+    <text x="105" y="266" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff" text-anchor="middle">1</text>
+    <text x="160" y="245" font-family="sans-serif" font-size="27" font-weight="bold" fill="#e6edf3">Tell clearly what the bug is</text>
+    <text x="160" y="278" font-family="sans-serif" font-size="20" fill="#8b949e">State the expected behavior vs. what actually</text>
+    <text x="160" y="305" font-family="sans-serif" font-size="20" fill="#8b949e">happens — precisely.</text>
+    <rect x="870" y="199" width="116" height="112" rx="14" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+    <!-- speech bubble with bug + ! -->
+    <rect x="885" y="215" width="86" height="56" rx="12" fill="#1f6feb"/>
+    <path d="M905 269 l-6 16 l18 -14 z" fill="#1f6feb"/>
+    <use href="#bug" transform="translate(913,243) scale(0.75)"/>
+    <text x="950" y="254" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff">!</text>
+  </g>
+
+  <!-- ================= Step 2 : terminal with the real error ================= -->
+  <g>
+    <circle cx="105" cy="400" r="30" fill="#8957e5"/>
+    <text x="105" y="411" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff" text-anchor="middle">2</text>
+    <text x="160" y="390" font-family="sans-serif" font-size="27" font-weight="bold" fill="#e6edf3">Show, don't describe</text>
+    <text x="160" y="423" font-family="sans-serif" font-size="20" fill="#8b949e">Paste the exact error, stack trace, or screenshot — and</text>
+    <text x="160" y="450" font-family="sans-serif" font-size="20" fill="#8b949e">the steps that trigger it. Tracebacks get fixes.</text>
+    <rect x="870" y="344" width="116" height="112" rx="14" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+    <!-- mini terminal -->
+    <rect x="883" y="360" width="90" height="66" rx="7" fill="#0b0f14" stroke="#8957e5" stroke-width="2"/>
+    <rect x="883" y="360" width="90" height="14" rx="7" fill="#8957e5"/>
+    <circle cx="892" cy="367" r="2.6" fill="#f85149"/>
+    <circle cx="901" cy="367" r="2.6" fill="#d29922"/>
+    <circle cx="910" cy="367" r="2.6" fill="#3fb950"/>
+    <text x="889" y="392" font-family="monospace" font-size="11" fill="#3fb950">$ run app</text>
+    <text x="889" y="406" font-family="monospace" font-size="11" fill="#f85149">Traceback:</text>
+    <text x="889" y="419" font-family="monospace" font-size="11" fill="#f85149">line 42 err</text>
+    <text x="928" y="447" font-family="sans-serif" font-size="14" fill="#8b949e" text-anchor="middle">copy · paste</text>
+  </g>
+
+  <!-- ================= Step 3 : folder with code ================= -->
+  <g>
+    <circle cx="105" cy="545" r="30" fill="#d9488a"/>
+    <text x="105" y="556" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff" text-anchor="middle">3</text>
+    <text x="160" y="535" font-family="sans-serif" font-size="27" font-weight="bold" fill="#e6edf3">Give Claude the code</text>
+    <text x="160" y="568" font-family="sans-serif" font-size="20" fill="#8b949e">Connect your project folder so Claude reads the real</text>
+    <text x="160" y="595" font-family="sans-serif" font-size="20" fill="#8b949e">files instead of assuming.</text>
+    <rect x="870" y="489" width="116" height="112" rx="14" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+    <!-- folder -->
+    <path d="M886 522 h26 l8 9 h38 a6 6 0 0 1 6 6 v40 a6 6 0 0 1 -6 6 h-72 a6 6 0 0 1 -6 -6 v-49 a6 6 0 0 1 6 -6 z" fill="#d9488a"/>
+    <rect x="880" y="538" width="84" height="45" rx="6" fill="#f0699f"/>
+    <text x="922" y="568" font-family="monospace" font-size="20" font-weight="bold" fill="#0d1117" text-anchor="middle">&lt;/&gt;</text>
+  </g>
+
+  <!-- ================= Step 4 : magnifier over the bug ================= -->
+  <g>
+    <circle cx="105" cy="690" r="30" fill="#e07b39"/>
+    <text x="105" y="701" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff" text-anchor="middle">4</text>
+    <text x="160" y="680" font-family="sans-serif" font-size="27" font-weight="bold" fill="#e6edf3">Ask it to reproduce first</text>
+    <text x="160" y="713" font-family="sans-serif" font-size="20" fill="#8b949e">"Reproduce this bug, then fix it" forces the root cause</text>
+    <text x="160" y="740" font-family="sans-serif" font-size="20" fill="#8b949e">to be found before anything is changed.</text>
+    <rect x="870" y="634" width="116" height="112" rx="14" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+    <!-- magnifying glass over bug -->
+    <circle cx="920" cy="682" r="26" fill="#0b0f14" stroke="#e07b39" stroke-width="4"/>
+    <use href="#bug" transform="translate(920,684) scale(0.85)"/>
+    <line x1="939" y1="701" x2="960" y2="722" stroke="#e07b39" stroke-width="7" stroke-linecap="round"/>
+    <!-- replay arrow -->
+    <path d="M950 655 a20 20 0 1 1 -8 -18" fill="none" stroke="#8b949e" stroke-width="3" stroke-linecap="round"/>
+    <path d="M938 632 l8 5 l-9 5 z" fill="#8b949e"/>
+  </g>
+
+  <!-- ================= Step 5 : code file under review (eye) ================= -->
+  <g>
+    <circle cx="105" cy="835" r="30" fill="#1f9d9d"/>
+    <text x="105" y="846" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff" text-anchor="middle">5</text>
+    <text x="160" y="825" font-family="sans-serif" font-size="27" font-weight="bold" fill="#e6edf3">Check the generated code</text>
+    <text x="160" y="858" font-family="sans-serif" font-size="20" fill="#8b949e">Read Claude's changes when you can — understanding</text>
+    <text x="160" y="885" font-family="sans-serif" font-size="20" fill="#8b949e">why the bug was there makes you faster next time.</text>
+    <rect x="870" y="779" width="116" height="112" rx="14" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+    <!-- document with code lines -->
+    <path d="M888 793 h48 l14 14 v62 h-62 z" fill="#0b0f14" stroke="#1f9d9d" stroke-width="2"/>
+    <path d="M936 793 v14 h14 z" fill="#1f9d9d"/>
+    <rect x="896" y="816" width="34" height="5" rx="2.5" fill="#58a6ff"/>
+    <rect x="896" y="828" width="44" height="5" rx="2.5" fill="#3fb950"/>
+    <rect x="902" y="840" width="30" height="5" rx="2.5" fill="#bc8cff"/>
+    <rect x="896" y="852" width="40" height="5" rx="2.5" fill="#8b949e"/>
+    <!-- eye -->
+    <ellipse cx="958" cy="856" rx="18" ry="12" fill="#161b22" stroke="#1f9d9d" stroke-width="3"/>
+    <circle cx="958" cy="856" r="5.5" fill="#1f9d9d"/>
+  </g>
+
+  <!-- ================= Step 6 : checklist verified ================= -->
+  <g>
+    <circle cx="105" cy="980" r="30" fill="#3fb950"/>
+    <text x="105" y="991" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff" text-anchor="middle">6</text>
+    <text x="160" y="970" font-family="sans-serif" font-size="27" font-weight="bold" fill="#e6edf3">Ask for verification</text>
+    <text x="160" y="1003" font-family="sans-serif" font-size="20" fill="#8b949e">Have Claude run the code, add a quick test, or show a</text>
+    <text x="160" y="1030" font-family="sans-serif" font-size="20" fill="#8b949e">diff — confirm the fix, don't just trust it.</text>
+    <rect x="870" y="924" width="116" height="112" rx="14" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+    <!-- clipboard checklist -->
+    <rect x="886" y="940" width="66" height="80" rx="7" fill="#0b0f14" stroke="#3fb950" stroke-width="2"/>
+    <rect x="906" y="934" width="26" height="12" rx="5" fill="#3fb950"/>
+    <path d="M894 962 l5 5 l9 -10" fill="none" stroke="#3fb950" stroke-width="3" stroke-linecap="round"/>
+    <rect x="914" y="958" width="30" height="5" rx="2.5" fill="#8b949e"/>
+    <path d="M894 982 l5 5 l9 -10" fill="none" stroke="#3fb950" stroke-width="3" stroke-linecap="round"/>
+    <rect x="914" y="978" width="30" height="5" rx="2.5" fill="#8b949e"/>
+    <path d="M894 1002 l5 5 l9 -10" fill="none" stroke="#3fb950" stroke-width="3" stroke-linecap="round"/>
+    <rect x="914" y="998" width="30" height="5" rx="2.5" fill="#8b949e"/>
+    <!-- big check -->
+    <circle cx="962" cy="1006" r="17" fill="#3fb950"/>
+    <path d="M954 1006 l6 6 l11 -13" fill="none" stroke="#0d1117" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- ================= Step 7 : one chat thread, one bug ================= -->
+  <g>
+    <circle cx="105" cy="1125" r="30" fill="#d29922"/>
+    <text x="105" y="1136" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff" text-anchor="middle">7</text>
+    <text x="160" y="1115" font-family="sans-serif" font-size="27" font-weight="bold" fill="#e6edf3">One bug per thread</text>
+    <text x="160" y="1148" font-family="sans-serif" font-size="20" fill="#8b949e">Keep context clean. For regressions, mention what</text>
+    <text x="160" y="1175" font-family="sans-serif" font-size="20" fill="#8b949e">changed recently or share the git log.</text>
+    <rect x="870" y="1069" width="116" height="112" rx="14" fill="#161b22" stroke="#2a3340" stroke-width="1.5"/>
+    <!-- one thread = one bubble with a single bug -->
+    <rect x="884" y="1085" width="72" height="46" rx="11" fill="#d29922"/>
+    <path d="M900 1129 l-5 14 l16 -12 z" fill="#d29922"/>
+    <use href="#bug" transform="translate(920,1108) scale(0.7)"/>
+    <text x="965" y="1116" font-family="sans-serif" font-size="22" font-weight="bold" fill="#e6edf3">×1</text>
+    <!-- crossed-out second bug -->
+    <g opacity="0.55">
+      <use href="#bug" transform="translate(945,1158) scale(0.55)"/>
+      <line x1="928" y1="1141" x2="962" y2="1175" stroke="#8b949e" stroke-width="3.5" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <line x1="70" y1="1240" x2="1010" y2="1240" stroke="#2a3340" stroke-width="2"/>
+  <text x="70" y="1290" font-family="sans-serif" font-size="20" fill="#58a6ff">Precise input → reproduced bug → verified fix</text>
+  <text x="1010" y="1290" font-family="sans-serif" font-size="20" fill="#8b949e" text-anchor="end">Human + Claude, debugging together</text>
+</svg>

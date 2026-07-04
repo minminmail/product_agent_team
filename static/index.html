@@ -48,6 +48,70 @@
   .logrow.error .lk{color:#ff7b72;font-weight:700}
   .logrow.info .lk{color:#8b949e}
   .logempty{color:#6e7681}
+  /* Search history — dedicated section below the agent roster. */
+  .histsec{display:flex;align-items:center;gap:12px;padding:10px 20px;
+       border-bottom:1px solid var(--border);background:var(--panel)}
+  .histsec-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+       color:var(--muted);font-weight:700}
+  /* History + View-log: label on top, identical buttons stacked vertically at
+     the left, ~¼ of the left panel width, same blue as the LangGraph segment. */
+  .histbtns{display:flex;flex-direction:column;gap:8px;flex:0 0 25%;width:25%}
+  .histsec{align-items:flex-start}
+  /* Filter: field dropdown; picking a field reveals a value dropdown on its
+     right. display:contents → each select is a direct flex item of .histsec,
+     so it gets EXACTLY the same 25% width as the History button. */
+  .histfilter{display:contents}
+  .histfilter select{flex:0 0 25%;width:25%;min-width:0;margin-top:22px;
+       background:var(--bg);border:1px solid var(--border);color:var(--text);
+       border-radius:7px;padding:7px 9px;font-size:12.5px}
+  .histfilter select:focus{border-color:var(--accent)}
+  .histsec button{width:100%;background:var(--accent);color:#06131f;
+       border:0;border-radius:7px;padding:8px 0;font-size:12.5px;font-weight:650;
+       cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .histsec button:hover{filter:brightness(1.12)}
+  .histsec button.on{box-shadow:0 0 0 2px var(--accent2)}
+  /* Drag grip on top of each slide-up panel: drag DOWN to shrink it (so it
+     doesn't cover the agent area), drag UP to enlarge it. */
+  .panelgrip{position:fixed;left:0;right:0;height:14px;display:none;z-index:72;
+       cursor:ns-resize;touch-action:none;background:transparent}
+  .panelgrip::after{content:"";position:absolute;left:50%;top:4px;transform:translateX(-50%);
+       width:72px;height:6px;border-radius:3px;background:var(--border)}
+  .panelgrip:hover::after,.panelgrip.dragging::after{background:var(--accent)}
+  /* Search history — slide-up panel above the bottom bar. */
+  .histpanel{position:fixed;left:0;right:0;bottom:38px;height:58vh;overflow:auto;display:none;z-index:71;
+       background:#0b0f14;border-top:1px solid var(--border);padding:12px 18px;font-size:13px}
+  .histpanel.open{display:block}
+  .histempty{color:#6e7681;font-size:12px}
+  .hrow{border:1px solid var(--border);border-radius:9px;margin-bottom:8px;background:var(--panel)}
+  .hrow-head{display:flex;gap:12px;align-items:center;padding:9px 12px;cursor:pointer;font-size:12.5px;flex-wrap:wrap}
+  .hrow-head:hover{background:var(--panel2)}
+  .hcat{font-weight:650;color:var(--text)}
+  .hmeta{color:var(--muted);font-size:11.5px}
+  .hbadge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+       padding:1px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+  .hbadge.complete{color:#06210f;background:var(--green);border-color:var(--green)}
+  .hbadge.errors{color:#0d1117;background:var(--amber);border-color:var(--amber)}
+  .hbadge.error{color:#fff;background:var(--red);border-color:var(--red)}
+  .hdel{margin-left:auto;width:auto;font-size:10px;font-weight:700;padding:2px 9px;border-radius:8px;
+       border:1px solid var(--border);background:var(--chip);color:var(--muted);cursor:pointer}
+  .hdel:hover{color:#fff;border-color:var(--red);background:var(--red)}
+  .hbody{display:none;border-top:1px solid var(--border);padding:10px 14px}
+  .hrow.open .hbody{display:block}
+  .hsec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin:12px 0 6px}
+  .hsec:first-child{margin-top:0}
+  .hparams{display:flex;flex-wrap:wrap;gap:6px}
+  .hparam{font-size:11px;background:var(--chip);border:1px solid var(--border);border-radius:999px;
+       padding:2px 10px;color:var(--muted)}
+  .hparam b{color:var(--text)}
+  .hreport{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;
+       max-height:300px;overflow:auto;font-size:13px;margin-bottom:8px}
+  .hreport table{border-collapse:collapse}
+  .hreport th,.hreport td{border:1px solid var(--border);padding:3px 7px}
+  .hreport img{max-width:140px;max-height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--border);margin:3px 6px 3px 0}
+  details.hagent{margin:6px 0;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px}
+  details.hagent summary{cursor:pointer;font-size:12.5px;color:var(--text);font-weight:600}
+  .hagent-out{font-size:12.5px;color:var(--muted);margin-top:6px;max-height:240px;overflow:auto}
+  .hagent-out img{max-width:140px;max-height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--border);margin:3px 6px 3px 0}
   .left{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
   .controls{padding:16px 20px;border-bottom:1px solid var(--border);background:var(--panel)}
   .cfgbox{border:1px solid var(--border);border-radius:10px;background:var(--panel2);padding:14px 14px 16px;margin-bottom:14px}
@@ -180,6 +244,8 @@
   .report th{background:var(--panel2)}
   .report a{color:var(--accent)}
   .report code{background:var(--panel2);padding:1px 5px;border-radius:4px}
+  .report img,.outpop-body img{max-width:170px;max-height:130px;object-fit:cover;
+       border:1px solid var(--border);border-radius:8px;margin:4px 8px 4px 0;vertical-align:top;background:var(--panel2)}
   .empty{color:var(--muted);padding:40px;text-align:center}
   .links a{color:var(--accent);font-size:12px;margin-right:14px;text-decoration:none}
   .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);
@@ -398,6 +464,23 @@
       </svg>
     </div>
 
+    <!-- Search history + activity log — own section, below the LangGraph panel -->
+    <div class="histsec">
+      <div class="histbtns">
+        <span class="histsec-label" id="histSecLabel">Search history</span>
+        <button id="histToggle" type="button">🕘 History</button>
+        <button id="logToggle" type="button">📋 Show log</button>
+      </div>
+      <div class="histfilter">
+        <select id="histField">
+          <option value="" selected id="hfPh">Filter…</option>
+          <option value="category" id="hfCat">Product category</option>
+          <option value="model" id="hfModel">Model name</option>
+        </select>
+        <select id="histValue" style="display:none"></select>
+      </div>
+    </div>
+
     <div class="timeline" id="timeline">
       <div class="empty">Enter a category and hit <b>Run research</b> to watch the team work.</div>
     </div>
@@ -416,10 +499,12 @@
   </div>
 </div>
 
-<!-- Activity log: slide-up panel + bottom bar (end of the UI) -->
+<!-- Activity log + search history: slide-up panels + bottom bar (end of the UI) -->
+<div class="panelgrip" id="histGrip" title="Drag to resize"></div>
+<div class="histpanel" id="histPanel"></div>
+<div class="panelgrip" id="logGrip" title="Drag to resize"></div>
 <div class="logpanel" id="logPanel"><div class="logempty">No activity yet — run the pipeline to see calls here.</div></div>
 <div class="logbar">
-  <button id="logToggle" class="logbtn">📋 Show log</button>
   <span class="logmeta" id="logMeta"></span>
   <button id="logClear" class="logbtn ghost" style="margin-left:auto">Clear</button>
 </div>
@@ -469,6 +554,16 @@ en:{
   noReportYet:"_This agent hasn't run yet. Run the pipeline to see its output here._",
   noSeparate:"_This agent produced no separate report text — see its activity below._",
   connLost:"Connection lost.",
+  histBtn:"🕘 History", histSec:"Search history",
+  histFilterPh:"Filter…", histFieldModel:"Model name", histAll:"All",
+  histDrag:"Drag up/down to resize",
+  histEmpty:"No search history yet — run the pipeline first.",
+  histLoading:"Loading…", histErr:"Could not load history.", histDelete:"Delete",
+  histParams:"Parameters", histReports:"Reports", histAgents:"Agent outputs",
+  histNoAgents:"No per-agent output captured.",
+  kindResearch:"research", kindSourcing:"sourcing", kindPipeline:"full pipeline",
+  stageResearch:"Research report", stageSourcing:"Supplier report",
+  pProvider:"provider", pEngine:"engine",
   stages:{"Stage 1 · Research":"Stage 1 · Research","Stage 2 · Sourcing":"Stage 2 · Sourcing"},
   roles:{"Orchestrator":"Orchestrator","Product Researcher":"Product Researcher","Supplier Sourcer":"Supplier Sourcer",
          "Audience Researcher":"Audience Researcher","Competitor Analyst":"Competitor Analyst","Predictor":"Predictor"},
@@ -515,6 +610,16 @@ zh:{
   noReportYet:"_该智能体尚未运行。运行流水线后可在此查看其输出。_",
   noSeparate:"_该智能体没有单独的报告文本——请查看下方活动。_",
   connLost:"连接丢失。",
+  histBtn:"🕘 历史记录", histSec:"搜索历史",
+  histFilterPh:"筛选…", histFieldModel:"模型名称", histAll:"全部",
+  histDrag:"上下拖拽调整高度",
+  histEmpty:"暂无搜索历史——请先运行一次流水线。",
+  histLoading:"加载中…", histErr:"无法加载历史记录。", histDelete:"删除",
+  histParams:"参数", histReports:"报告", histAgents:"智能体输出",
+  histNoAgents:"未捕获各智能体的输出。",
+  kindResearch:"研究", kindSourcing:"采购", kindPipeline:"完整流水线",
+  stageResearch:"研究报告", stageSourcing:"供应商报告",
+  pProvider:"提供商", pEngine:"引擎",
   stages:{"Stage 1 · Research":"第一阶段 · 研究","Stage 2 · Sourcing":"第二阶段 · 采购"},
   roles:{"Orchestrator":"编排者","Product Researcher":"产品研究员","Supplier Sourcer":"供应商采购员",
          "Audience Researcher":"受众研究员","Competitor Analyst":"竞品分析师","Predictor":"预测师"},
@@ -562,6 +667,16 @@ es:{
   noReportYet:"_Este agente aún no se ha ejecutado. Ejecuta el pipeline para ver su salida aquí._",
   noSeparate:"_Este agente no produjo texto de informe propio — mira su actividad abajo._",
   connLost:"Conexión perdida.",
+  histBtn:"🕘 Historial", histSec:"Historial de búsqueda",
+  histFilterPh:"Filtrar…", histFieldModel:"Nombre del modelo", histAll:"Todos",
+  histDrag:"Arrastra arriba/abajo para ajustar",
+  histEmpty:"Aún no hay historial — ejecuta el pipeline primero.",
+  histLoading:"Cargando…", histErr:"No se pudo cargar el historial.", histDelete:"Eliminar",
+  histParams:"Parámetros", histReports:"Informes", histAgents:"Salidas de los agentes",
+  histNoAgents:"No se capturó salida por agente.",
+  kindResearch:"investigación", kindSourcing:"sourcing", kindPipeline:"pipeline completo",
+  stageResearch:"Informe de investigación", stageSourcing:"Informe de proveedores",
+  pProvider:"proveedor", pEngine:"motor",
   stages:{"Stage 1 · Research":"Etapa 1 · Investigación","Stage 2 · Sourcing":"Etapa 2 · Sourcing"},
   roles:{"Orchestrator":"Orquestadora","Product Researcher":"Investigadora de producto","Supplier Sourcer":"Buscador de proveedores",
          "Audience Researcher":"Investigadora de audiencia","Competitor Analyst":"Analista de competencia","Predictor":"Predictor"},
@@ -698,6 +813,7 @@ function renderLog(){
 function toggleLog(){
   const open = $("#logPanel").classList.toggle("open");
   $("#logToggle").textContent = open ? t('hideLog') : t('showLog');
+  $("#logToggle").classList.toggle("on", open);
   if(open) renderLog();
 }
 function clearLog(){ logLines.length = 0; $("#logMeta").textContent = ""; renderLog(); }
@@ -1006,6 +1122,7 @@ function _exportPdf(name, title, bodyHtml, fallback){
     `th,td{border:1px solid #cbd5e1;padding:4px 7px;text-align:left;vertical-align:top;color:#111827}`+
     `th{background:#eef2f7}`+
     `pre{white-space:pre-wrap;font:12px/1.5 Menlo,Consolas,monospace;color:#1f2937}`+
+    `img{max-width:150px;max-height:115px;object-fit:cover;border:1px solid #cbd5e1;border-radius:6px;margin:3px 6px 3px 0;vertical-align:top}`+
     `code{font-family:Menlo,Consolas,monospace}`+
     `.pdfmeta{color:#6b7280;font-size:10px;margin:0 0 14px}`+
     `</style></head><body>`+
@@ -1018,9 +1135,11 @@ function _exportPdf(name, title, bodyHtml, fallback){
   if(!win){ if(fallback) fallback(); return; }   // popup blocked → save source file instead
   win.document.open(); win.document.write(docHtml); win.document.close();
   const go=()=>{ try{ win.focus(); win.print(); }catch(e){} };
-  // Give the new document a moment to lay out before printing.
-  if(win.document.readyState==="complete") setTimeout(go, 300);
-  else win.onload=()=>setTimeout(go, 300);
+  // Wait for the document's images (product photos) to finish loading before
+  // printing — capped at 2.5s so a slow/dead image can't stall the export.
+  const imgs=[...win.document.images];
+  const waitImgs=Promise.all(imgs.map(im=>im.complete?true:new Promise(r=>{im.onload=im.onerror=r;})));
+  Promise.race([waitImgs, new Promise(r=>setTimeout(r,2500))]).then(()=>setTimeout(go,300));
 }
 
 // Per-agent status pills: idle | waiting | working | finished | failed.
@@ -1307,9 +1426,201 @@ document.addEventListener("click", e=>{
   if(!cl(".outpop")) hideOutputPopup();
 });
 window.addEventListener("resize", ()=>{ hideFailPopup(); hideOutputPopup(); });
+// Product images come from agent web research; hide any that fail to load
+// (dead or hotlink-protected URLs) instead of showing broken-image icons.
+document.addEventListener("error", e=>{
+  const im=e.target;
+  if(im && im.tagName==="IMG" && (im.closest(".report")||im.closest(".outpop-body")||im.closest(".histpanel"))) im.style.display="none";
+}, true);
 // Activity log controls (bottom bar).
-$("#logToggle").addEventListener("click", toggleLog);
+$("#logToggle").addEventListener("click", ()=>{
+  $("#histPanel").classList.remove("open");
+  $("#histToggle").classList.remove("on");
+  toggleLog();
+});
 $("#logClear").addEventListener("click", clearLog);
+
+// --- Search history: past runs (parameters + agent outputs + reports) -------
+const KIND_KEY={research:"kindResearch", sourcing:"kindSourcing", pipeline:"kindPipeline"};
+const STAGE_RPT={research:"stageResearch", sourcing:"stageSourcing"};
+const hstatus = s => s==="complete"?t('stComplete'):s==="errors"?t('stErrors'):s==="running"?t('stRunning'):t('stError');
+const _hlocale = () => LANG==="zh" ? "zh-CN" : LANG==="es" ? "es-ES" : "en-US";
+async function toggleHistory(){
+  const p=$("#histPanel");
+  const open=p.classList.toggle("open");
+  $("#histToggle").classList.toggle("on", open);
+  if(open){
+    $("#logPanel").classList.remove("open");
+    $("#logToggle").textContent=t('showLog');
+    $("#logToggle").classList.remove("on");
+    await loadHistory();
+  }
+}
+let _histRuns=null;                       // cached run list (for filtering)
+let _histFilter=null;                     // {field:"category"|"model", value}
+const escAttr = s => esc(s).replace(/"/g,"&quot;");
+async function fetchHistRuns(){
+  try{ const r=await fetch("/api/history"); if(!r.ok) throw 0;
+       _histRuns=((await r.json())||{}).runs||[]; }
+  catch(e){ _histRuns=null; }
+  return _histRuns;
+}
+async function loadHistory(){
+  const p=$("#histPanel");
+  p.innerHTML='<div class="histempty">'+esc(t('histLoading'))+'</div>';
+  await fetchHistRuns();
+  renderHistList();
+}
+function renderHistList(){
+  const p=$("#histPanel");
+  if(_histRuns===null){ p.innerHTML='<div class="histempty">'+esc(t('histErr'))+'</div>'; return; }
+  let runs=_histRuns;
+  if(_histFilter && _histFilter.value!=="")
+    runs=runs.filter(r=>String(r[_histFilter.field]||"")===_histFilter.value);
+  if(!runs.length){ p.innerHTML='<div class="histempty">'+esc(t('histEmpty'))+'</div>'; return; }
+  p.innerHTML=runs.map(r=>{
+    const d=new Date(r.created_at*1000).toLocaleString(_hlocale());
+    const model=[r.provider, r.model].filter(Boolean).join(" · ");
+    return `<div class="hrow" data-id="${r.id}">`+
+      `<div class="hrow-head">`+
+      `<span class="hbadge ${esc(r.status)}">${esc(hstatus(r.status))}</span>`+
+      `<span class="hcat">${esc(r.category)}</span>`+
+      `<span class="hmeta">${esc(t(KIND_KEY[r.kind]||r.kind))}</span>`+
+      `<span class="hmeta">${esc(model)}${r.mock?" · MOCK":""}</span>`+
+      `<span class="hmeta">${esc(d)}</span>`+
+      `<button type="button" class="hdel" data-del="${r.id}">${esc(t('histDelete'))}</button>`+
+      `</div><div class="hbody"></div></div>`;
+  }).join("");
+}
+const _mdOrPre = s => window.marked ? marked.parse(s) : "<pre>"+esc(s)+"</pre>";
+async function openHistRow(row){
+  const open=row.classList.toggle("open");
+  const body=row.querySelector(".hbody");
+  if(!open || body.dataset.loaded) return;
+  body.innerHTML='<div class="histempty">'+esc(t('histLoading'))+'</div>';
+  let r=null;
+  try{ const res=await fetch("/api/history/"+row.dataset.id); if(!res.ok) throw 0; r=await res.json(); }
+  catch(e){ body.innerHTML='<div class="histempty">'+esc(t('histErr'))+'</div>'; return; }
+  body.dataset.loaded="1";
+  const chips=[];
+  const strip=s=>s.replace(/[:：]\s*$/,"");
+  const add=(label,val)=>{ if(val!==null&&val!==undefined&&val!=="")
+    chips.push(`<span class="hparam">${esc(label)}: <b>${esc(String(val))}</b></span>`); };
+  add(t('cat'), r.category); add(t('topN'), r.top_n);
+  add(t('pProvider'), r.provider); add(t('leadModel'), r.model);
+  if(r.source_provider||r.source_model)
+    add(t('srcModel'), [r.source_provider,r.source_model].filter(Boolean).join(" · "));
+  add(t('pEngine'), r.engine); add(t('language'), r.lang);
+  if(r.mock) chips.push('<span class="hparam"><b>MOCK</b></span>');
+  if(r.cost_usd!=null) add(strip(t('cost')), "$"+Number(r.cost_usd).toFixed(4));
+  if(r.duration_ms) add(strip(t('time')), fmtMs(r.duration_ms));
+  if(r.num_turns) add(strip(t('turns')), r.num_turns);
+  let html=`<div class="hsec">${esc(t('histParams'))}</div><div class="hparams">${chips.join("")}</div>`;
+  if((r.reports||[]).length){
+    html+=`<div class="hsec">${esc(t('histReports'))}</div>`;
+    for(const rp of r.reports)
+      html+=`<div class="hmeta" style="margin:4px 0">${esc(t(STAGE_RPT[rp.stage]||rp.stage))}</div>`+
+            `<div class="hreport">${_mdOrPre(rp.report)}</div>`;
+  }
+  html+=`<div class="hsec">${esc(t('histAgents'))}</div>`;
+  if((r.agents||[]).length){
+    for(const a of r.agents)
+      html+=`<details class="hagent"><summary>${esc(a.agent)}</summary>`+
+            `<div class="hagent-out">${_mdOrPre(a.output)}</div></details>`;
+  } else html+=`<div class="hmeta">${esc(t('histNoAgents'))}</div>`;
+  if(r.error) html+=`<div class="hsec" style="color:var(--red)">⚠</div>`+
+                    `<div class="hmeta" style="white-space:pre-wrap">${esc(r.error)}</div>`;
+  body.innerHTML=html;
+}
+$("#histPanel").addEventListener("click", async e=>{
+  const del=e.target.closest(".hdel");
+  if(del){
+    e.stopPropagation();
+    try{ await fetch("/api/history/"+del.dataset.del, {method:"DELETE"}); }catch(_){}
+    if(_histRuns) _histRuns=_histRuns.filter(r=>String(r.id)!==String(del.dataset.del));
+    const row=del.closest(".hrow"); if(row) row.remove();
+    if(!$("#histPanel").querySelector(".hrow"))
+      $("#histPanel").innerHTML='<div class="histempty">'+esc(t('histEmpty'))+'</div>';
+    return;
+  }
+  const head=e.target.closest(".hrow-head");
+  if(head) openHistRow(head.closest(".hrow"));
+});
+$("#histToggle").addEventListener("click", toggleHistory);
+// Filter dropdowns: pick a field (category / model) → a second dropdown appears
+// on the right with that field's values from the user's history; picking a
+// value opens the panel showing only matching runs.
+function _openHistPanel(){
+  const p=$("#histPanel");
+  if(!p.classList.contains("open")){
+    p.classList.add("open");
+    $("#histToggle").classList.add("on");
+    $("#logPanel").classList.remove("open");
+    $("#logToggle").classList.remove("on");
+    $("#logToggle").textContent=t('showLog');
+  }
+}
+$("#histField").addEventListener("change", async e=>{
+  const field=e.target.value, vs=$("#histValue");
+  if(!field){
+    vs.style.display="none"; vs.innerHTML=""; _histFilter=null;
+    if($("#histPanel").classList.contains("open")) renderHistList();
+    return;
+  }
+  if(_histRuns===null) await fetchHistRuns();
+  const vals=[...new Set((_histRuns||[]).map(r=>String(r[field]||"")).filter(Boolean))];
+  vs.innerHTML='<option value="">'+esc(t('histAll'))+'</option>'+
+    vals.map(v=>`<option value="${escAttr(v)}">${esc(v)}</option>`).join("");
+  vs.style.display="";
+  _histFilter={field, value:""};
+  if($("#histPanel").classList.contains("open")) renderHistList();
+});
+$("#histValue").addEventListener("change", e=>{
+  if(!_histFilter) return;
+  _histFilter.value=e.target.value;
+  _openHistPanel();
+  renderHistList();
+});
+
+// --- Resizable slide-up panels: a grip sits on each panel's top edge.
+// Drag DOWN → the panel shrinks (stops covering the agent area above);
+// drag UP → it grows. The chosen height is remembered per panel.
+function setupPanelResize(panel, grip, storeKey){
+  const BAR=38, MIN=110;                       // bottom bar height / min panel height
+  const maxH=()=>window.innerHeight-90;
+  const saved=parseInt(localStorage.getItem(storeKey)||"", 10);
+  if(saved) panel.style.height=Math.max(MIN, Math.min(saved, maxH()))+"px";
+  const sync=()=>{
+    const open=panel.classList.contains("open");
+    grip.style.display=open?"block":"none";
+    if(open) grip.style.bottom=(BAR+panel.offsetHeight-7)+"px";
+  };
+  new MutationObserver(sync).observe(panel, {attributes:true, attributeFilter:["class"]});
+  window.addEventListener("resize", sync);
+  let drag=null;
+  grip.addEventListener("pointerdown", e=>{
+    drag={y:e.clientY, h:panel.offsetHeight};
+    grip.classList.add("dragging");
+    grip.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  grip.addEventListener("pointermove", e=>{
+    if(!drag) return;
+    const h=Math.max(MIN, Math.min(maxH(), drag.h+(drag.y-e.clientY)));
+    panel.style.height=h+"px";
+    sync();
+  });
+  const end=e=>{
+    if(!drag) return;
+    drag=null; grip.classList.remove("dragging");
+    localStorage.setItem(storeKey, String(panel.offsetHeight));
+  };
+  grip.addEventListener("pointerup", end);
+  grip.addEventListener("pointercancel", end);
+  sync();
+}
+setupPanelResize($("#histPanel"), $("#histGrip"), "histPanelH");
+setupPanelResize($("#logPanel"),  $("#logGrip"),  "logPanelH");
 $("#pipe").addEventListener("click", ()=>launch("pipeline"));
 $("#run").addEventListener("click", ()=>launch("research"));
 // "Source suppliers": if a research report exists for this category, source
@@ -1515,6 +1826,15 @@ function applyLang(){
   $("#logClear").textContent=t('clear');
   if(logLines.length) $("#logMeta").textContent=logLines.length+" "+t('events');
   renderLog();
+  $("#histToggle").textContent=t('histBtn');
+  $("#histSecLabel").textContent=t('histSec');
+  $("#hfPh").textContent=t('histFilterPh');
+  $("#hfCat").textContent=t('cat');
+  $("#hfModel").textContent=t('histFieldModel');
+  const hv=$("#histValue");
+  if(hv && hv.options.length) hv.options[0].textContent=t('histAll');
+  $("#histGrip").title=t('histDrag'); $("#logGrip").title=t('histDrag');
+  if($("#histPanel").classList.contains("open")) loadHistory();
 }
 function setLang(l){ if(!I18N[l]) l="en"; LANG=l; applyLang(); }
 $("#langSel").addEventListener("change", e=>setLang(e.target.value));
