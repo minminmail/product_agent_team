@@ -69,6 +69,10 @@ def init_db(path: str) -> None:
         CREATE INDEX IF NOT EXISTS idx_rr_run ON run_reports(run_id);
         """
     )
+    # Migration: single combined target-market column ("Town, Province, Country").
+    cols = {r[1] for r in con.execute("PRAGMA table_info(runs)").fetchall()}
+    if "location" not in cols:
+        con.execute("ALTER TABLE runs ADD COLUMN location TEXT")
     con.commit()
     con.close()
 
@@ -105,17 +109,20 @@ class RunRecorder:
         self._cost = 0.0
         self._turns = 0
         self._done = False
+        location = ", ".join(
+            p.strip() for p in (params.get("town"), params.get("province"),
+                                params.get("country")) if p and p.strip())
         con = _conn()
         cur = con.execute(
             "INSERT INTO runs(email, created_at, kind, category, top_n, provider,"
-            " model, source_provider, source_model, engine, lang, mock)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            " model, source_provider, source_model, engine, lang, mock, location)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (email, int(time.time()), kind,
              params.get("category", ""), params.get("top"),
              params.get("provider"), params.get("model"),
              params.get("source_provider"), params.get("source_model"),
              params.get("engine"), params.get("lang"),
-             1 if params.get("mock") else 0),
+             1 if params.get("mock") else 0, location),
         )
         self.run_id = cur.lastrowid
         con.commit()
@@ -211,7 +218,8 @@ class RunRecorder:
 
 _RUN_COLS = ("id", "created_at", "kind", "category", "top_n", "provider",
              "model", "source_provider", "source_model", "engine", "lang",
-             "mock", "status", "duration_ms", "cost_usd", "num_turns", "error")
+             "mock", "status", "duration_ms", "cost_usd", "num_turns", "error",
+             "location")
 
 
 def list_runs(email: str, limit: int = 50) -> list[dict]:

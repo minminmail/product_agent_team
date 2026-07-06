@@ -325,6 +325,9 @@ async def research(
     provider: str = Query("anthropic", description="'groq' to force the free proxy."),
     mock: bool = Query(False, description="Run fully offline with canned data (no API key/credits)."),
     lang: str = Query("en", description="Report language: en | zh | es."),
+    country: str = Query("", description="Optional target market: country."),
+    province: str = Query("", description="Optional target market: province/state."),
+    town: str = Query("", description="Optional target market: town/city."),
 ) -> StreamingResponse:
     """Server-Sent Events stream of the research pipeline."""
     model = _clamp_model(provider, model)
@@ -338,7 +341,8 @@ async def research(
                 return
             rec = history.RunRecorder(email, "research", {
                 "category": category, "top": top, "provider": provider,
-                "model": model, "lang": lang, "mock": mock})
+                "model": model, "lang": lang, "mock": mock,
+                "country": country, "province": province, "town": town})
             if mock:
                 async for ev in run_stream_mock(category, top, REPORTS_DIR, model):
                     rec.observe(ev)
@@ -354,7 +358,8 @@ async def research(
                            "provider (Groq / Mock) instead.")
                     rec.observe({"type": "error", "message": msg})
                     yield _sse({"type": "error", "message": msg}); return
-                async for ev in run_stream(category, top, REPORTS_DIR, run_model, force_env=force_env, lang=lang):
+                async for ev in run_stream(category, top, REPORTS_DIR, run_model, force_env=force_env, lang=lang,
+                                           country=country, province=province, town=town):
                     rec.observe(ev)
                     yield _sse(ev)
         except Exception as exc:  # never leave the stream hanging
@@ -448,6 +453,9 @@ async def pipeline(
     source_model: str = Query("", description="Model for Stage 2 sourcing; blank = same as research."),
     mock: bool = Query(False, description="Run the whole pipeline offline (no API key/credits)."),
     lang: str = Query("en", description="Report language: en | zh | es."),
+    country: str = Query("", description="Optional target market: country."),
+    province: str = Query("", description="Optional target market: province/state."),
+    town: str = Query("", description="Optional target market: town/city."),
 ) -> StreamingResponse:
     """SSE stream of the orchestrator (Amanda): research, then supplier sourcing."""
     model = _clamp_model(provider, model)
@@ -465,7 +473,8 @@ async def pipeline(
                 "category": category, "top": top, "provider": provider,
                 "model": model, "source_provider": source_provider,
                 "source_model": source_model, "engine": "langgraph",
-                "lang": lang, "mock": mock})
+                "lang": lang, "mock": mock,
+                "country": country, "province": province, "town": town})
             force_env = None
             run_model = model
             sourcing_model = None          # None → run_pipeline reuses the research model
@@ -500,7 +509,8 @@ async def pipeline(
                 return
             async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, run_model, mock,
                                          force_env=force_env, sourcing_model=sourcing_model,
-                                         sourcing_force_env=sourcing_force_env, lang=lang):
+                                         sourcing_force_env=sourcing_force_env, lang=lang,
+                                         country=country, province=province, town=town):
                 rec.observe(ev)
                 yield _sse(ev)
         except Exception as exc:

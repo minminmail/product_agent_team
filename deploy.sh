@@ -30,8 +30,14 @@ ssh "$TARGET" '
   ./venv/bin/pip install -r requirements.txt
   find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
   systemctl restart agent-team
-  sleep 2
+  # Slow box: wait up to 20s for uvicorn to come up before declaring failure.
+  for i in $(seq 1 20); do
+    code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/ || true)
+    [ "$code" = "200" ] && break
+    sleep 1
+  done
   systemctl is-active agent-team
-  curl -sS -o /dev/null -w "local backend: %{http_code}\n" http://127.0.0.1:8000/
+  echo "local backend: $code (after ${i}s)"
+  [ "$code" = "200" ] || { journalctl -u agent-team -n 20 --no-pager; exit 1; }
 '
 echo "✓ deployed — check https://supplier.jilai.ai/"

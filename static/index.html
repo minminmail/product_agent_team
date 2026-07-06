@@ -180,11 +180,12 @@
   .status.finished{color:#06210f;background:var(--green);border-color:var(--green);cursor:pointer}
   .status.finished::after{content:" ⓘ";font-size:9px;opacity:.75}
   .status.finished:hover{filter:brightness(1.1)}
-  .outbtn{margin-left:6px;font-family:inherit;font-size:8px;font-weight:700;text-transform:uppercase;
-    letter-spacing:.03em;line-height:1.35;padding:1px 6px;border-radius:7px;border:1px solid var(--border);
-    background:var(--chip);color:var(--muted);cursor:pointer;white-space:nowrap;flex:none;align-self:center;
+  /* Same size/shape as the .status pill, in blue */
+  .outbtn{margin-left:6px;font-family:inherit;font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.05em;line-height:inherit;padding:2px 9px;border-radius:999px;border:1px solid var(--accent);
+    background:var(--accent);color:#06131f;cursor:pointer;white-space:nowrap;flex:none;align-self:center;
     width:auto}
-  .outbtn:hover{color:var(--text);border-color:var(--accent);background:var(--panel2)}
+  .outbtn:hover{filter:brightness(1.12)}
   .status.failed{color:#fff;background:var(--red);border-color:var(--red);cursor:pointer}
   .status.failed::after{content:" ⓘ";font-size:9px}
   .status.failed:hover{filter:brightness(1.12)}
@@ -342,6 +343,18 @@
       <div class="cfgbox">
         <div class="cfgbox-title" id="cfgTitle">Configuration</div>
         <div>
+          <label for="country" id="lblCountry">Target market · Country</label>
+          <select id="country" title="Optional: scope the research to one country"></select>
+        </div>
+        <div id="provinceWrap" style="margin-top:8px;display:none">
+          <label for="province" id="lblProvince">Province / State</label>
+          <select id="province" title="Optional: narrow to a province or state"></select>
+        </div>
+        <div id="townWrap" style="margin-top:8px;display:none">
+          <label for="town" id="lblTown">Town / City</label>
+          <select id="town" title="Optional: narrow to a town or city"></select>
+        </div>
+        <div style="margin-top:8px">
           <label for="cat" id="lblCat">Product category / market</label>
           <input id="cat" placeholder="e.g. smart home gadgets" value="smart home gadgets" />
         </div>
@@ -535,6 +548,9 @@ en:{
   cfg:"Configuration", cat:"Product category / market", catPh:"e.g. smart home gadgets", topN:"Top N",
   runMode:"Run mode", paidPh:"💳 Paid…", freePh:"🆓 Free…",
   leadModel:"Lead model", srcModel:"Sourcing model · Stage 2", sameAsResearch:"Same as research",
+  tgtCountry:"Target market · Country", tgtProvince:"Province / State", tgtTown:"Town / City",
+  locGlobal:"🌍 Global (all markets)", locAllProv:"All provinces", locAllTowns:"All towns",
+  locLoading:"Loading…", location:"Target market",
   hintAnthropic:"Anthropic API — uses your key &amp; credits for real research.",
   hintDeepseek:"DeepSeek API (paid) — calls DeepSeek directly. Needs <code>DEEPSEEK_API_KEY</code> in .env (no proxy).",
   hintGroq:"Groq (free) — routes via the local proxy → Groq. Needs <code>./run_proxy.sh</code> running.",
@@ -551,7 +567,7 @@ en:{
   notStarted:"not started", waiting:"waiting", working:"working", finished:"finished", failed:"failed", done:"done",
   showLog:"📋 Show log", hideLog:"📋 Hide log", clear:"Clear page log", events:"events",
   logEmpty:"No activity yet — run the pipeline to see calls here.",
-  outBtn:"output", outWord:"output", closeHint:"Click outside, or ✕, to close",
+  outBtn:"PDF report", outWord:"output", closeHint:"Click outside, or ✕, to close",
   whyFailed:"⚠ Why this failed", dismiss:"Click anywhere to dismiss", noDetail:"No failure detail was reported.",
   noOutput:"No output captured for this step — it may be summarized in the final report on the right.",
   statusWord:"Status:", activityLog:"Activity log", generated:"generated",
@@ -589,6 +605,9 @@ zh:{
   cfg:"配置", cat:"产品品类 / 市场", catPh:"例如：智能家居产品", topN:"前 N 名",
   runMode:"运行模式", paidPh:"💳 付费…", freePh:"🆓 免费…",
   leadModel:"主模型", srcModel:"采购模型 · 第二阶段", sameAsResearch:"与研究相同",
+  tgtCountry:"目标市场 · 国家", tgtProvince:"省 / 州", tgtTown:"城镇 / 城市",
+  locGlobal:"🌍 全球（不限）", locAllProv:"全部省份", locAllTowns:"全部城市",
+  locLoading:"加载中…", location:"目标市场",
   hintAnthropic:"Anthropic API——使用您的密钥和额度进行真实研究。",
   hintDeepseek:"DeepSeek API（付费）——直接调用 DeepSeek。需要在 .env 中设置 <code>DEEPSEEK_API_KEY</code>（无需代理）。",
   hintGroq:"Groq（免费）——通过本地代理 → Groq。需要运行 <code>./run_proxy.sh</code>。",
@@ -605,7 +624,7 @@ zh:{
   notStarted:"未开始", waiting:"等待中", working:"工作中", finished:"已完成", failed:"失败", done:"完成",
   showLog:"📋 显示日志", hideLog:"📋 隐藏日志", clear:"清理页面日志", events:"条事件",
   logEmpty:"暂无活动——运行流水线后可在此查看调用。",
-  outBtn:"输出", outWord:"输出", closeHint:"点击外部或 ✕ 关闭",
+  outBtn:"PDF 报告", outWord:"输出", closeHint:"点击外部或 ✕ 关闭",
   whyFailed:"⚠ 失败原因", dismiss:"点击任意处关闭", noDetail:"未报告失败详情。",
   noOutput:"此步骤未捕获输出——可能已汇总到右侧的最终报告中。",
   statusWord:"状态：", activityLog:"活动日志", generated:"生成于",
@@ -644,6 +663,9 @@ es:{
   cfg:"Configuración", cat:"Categoría de producto / mercado", catPh:"p. ej. gadgets de hogar inteligente", topN:"Top N",
   runMode:"Modo de ejecución", paidPh:"💳 De pago…", freePh:"🆓 Gratis…",
   leadModel:"Modelo principal", srcModel:"Modelo de sourcing · Etapa 2", sameAsResearch:"Igual que investigación",
+  tgtCountry:"Mercado objetivo · País", tgtProvince:"Provincia / Estado", tgtTown:"Ciudad / Municipio",
+  locGlobal:"🌍 Global (todos los mercados)", locAllProv:"Todas las provincias", locAllTowns:"Todas las ciudades",
+  locLoading:"Cargando…", location:"Mercado objetivo",
   hintAnthropic:"API de Anthropic — usa tu clave y créditos para investigación real.",
   hintDeepseek:"API de DeepSeek (de pago) — llama a DeepSeek directamente. Requiere <code>DEEPSEEK_API_KEY</code> en .env (sin proxy).",
   hintGroq:"Groq (gratis) — vía el proxy local → Groq. Requiere <code>./run_proxy.sh</code> en marcha.",
@@ -660,7 +682,7 @@ es:{
   notStarted:"sin iniciar", waiting:"en espera", working:"trabajando", finished:"terminado", failed:"falló", done:"hecho",
   showLog:"📋 Mostrar registro", hideLog:"📋 Ocultar registro", clear:"Limpiar registro", events:"eventos",
   logEmpty:"Sin actividad — ejecuta el pipeline para ver llamadas aquí.",
-  outBtn:"salida", outWord:"salida", closeHint:"Haz clic fuera, o ✕, para cerrar",
+  outBtn:"Informe PDF", outWord:"salida", closeHint:"Haz clic fuera, o ✕, para cerrar",
   whyFailed:"⚠ Por qué falló", dismiss:"Haz clic en cualquier lugar para cerrar", noDetail:"No se reportó detalle del fallo.",
   noOutput:"No se capturó salida en este paso — puede estar resumida en el informe final a la derecha.",
   statusWord:"Estado:", activityLog:"Registro de actividad", generated:"generado",
@@ -848,8 +870,8 @@ function rebuildCheapSourceModels(){
 function applyCheapMode(on){
   if(cheapOnly===on) return;
   cheapOnly=on;
-  if(on) rebuildCheapSourceModels();
   populateModels(runMode);
+  populateSourceModel(runMode);   // respects mock (keeps it empty)
 }
 function populateModels(mode){
   const sel=$("#model"); if(!sel) return;
@@ -865,6 +887,20 @@ function populateModels(mode){
   }
   sel.selectedIndex=0;
 }
+// Sourcing-model dropdown: original options saved so we can restore after Mock.
+const SRC_MODEL_HTML = $("#sourceModel") ? $("#sourceModel").innerHTML : "";
+function populateSourceModel(mode){
+  const sm=$("#sourceModel"); if(!sm) return;
+  if(mode==="mock"){                     // mock → no model choice, like Lead model
+    sm.innerHTML=""; sm.disabled=true; sm.title="No model choice for this provider";
+    return;
+  }
+  if(cheapOnly){ rebuildCheapSourceModels(); return; }
+  sm.innerHTML=SRC_MODEL_HTML; sm.disabled=false;
+  sm.title="Model for supplier sourcing (Stage 2). Sourcing needs reliable tool use — Anthropic is recommended.";
+  const ss=$("#srcSame"); if(ss) ss.textContent=t('sameAsResearch');
+  sm.value="";                           // default: Same as research
+}
 function setRunMode(mode){
   runMode = mode;
   mockMode = (mode === "mock");          // kept for existing checks
@@ -873,6 +909,7 @@ function setRunMode(mode){
   $("#freeSelect").value = FREE_MODES.includes(mode) ? mode : "";
   $("#modeHint").innerHTML = t(MODE_HINTS[mode] || MODE_HINTS.anthropic);
   populateModels(mode);                  // swap the Lead model list to match
+  populateSourceModel(mode);             // mock empties Stage 2 model too
 }
 $("#paidSelect").addEventListener("change", e=>{ if(running){ e.target.value = PAID_MODES.includes(runMode)?runMode:""; return; } if(e.target.value) setRunMode(e.target.value); });
 $("#freeSelect").addEventListener("change", e=>{ if(running){ e.target.value = FREE_MODES.includes(runMode)?runMode:""; return; } if(e.target.value) setRunMode(e.target.value); });
@@ -1175,6 +1212,79 @@ const esc = s => (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"
 
 function fmtMs(ms){ if(!ms) return "—"; const s=ms/1000; return s<60?s.toFixed(1)+"s":(s/60).toFixed(1)+"m"; }
 
+// ── Target market: cascading country → province → town ──────────────────────
+// Lists come from the free countriesnow.space API; if it's unreachable the
+// three dropdowns become plain text inputs so the feature still works offline.
+const GEO_API = "https://countriesnow.space/api/v0.1/countries";
+async function geoFetch(path, body){
+  const r = await fetch(GEO_API+path, body ? {method:"POST",
+    headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : undefined);
+  if(!r.ok) throw new Error("geo api "+r.status);
+  const j = await r.json();
+  if(j.error) throw new Error(j.msg||"geo api error");
+  return j.data;
+}
+// Rebuild a location control in place. A <select> when we have names; a free
+// text <input> when the API has no data for that level (user can still type).
+function makeLocSelect(id, names, allKey){
+  const old=document.getElementById(id), sel=document.createElement("select");
+  sel.id=id; sel.title=old?old.title||"":"";
+  sel.innerHTML=`<option value="">${esc(t(allKey))}</option>`+
+    names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  if(old) old.replaceWith(sel);
+  return sel;
+}
+function makeLocInput(id, phKey){
+  const old=document.getElementById(id), inp=document.createElement("input");
+  inp.id=id; inp.placeholder=t(phKey); inp.title=old?old.title||"":"";
+  if(old) old.replaceWith(inp);
+  return inp;
+}
+function locValue(id){ const el=document.getElementById(id); return el ? (el.value||"").trim() : ""; }
+async function loadCountries(){
+  if(!document.getElementById("country")) return;
+  const sel=makeLocSelect("country", [], 'locLoading'); sel.disabled=true;
+  try{
+    const data=await geoFetch("/positions");            // [{name, iso2, ...}]
+    makeLocSelect("country", data.map(c=>c.name).sort((a,b)=>a.localeCompare(b)), 'locGlobal');
+  }catch(e){
+    // Geo API down → free text everywhere; research still gets the location.
+    makeLocInput("country",'tgtCountry'); makeLocInput("province",'tgtProvince');
+    makeLocInput("town",'tgtTown');
+    $("#provinceWrap").style.display=""; $("#townWrap").style.display="";
+  }
+}
+async function onCountryChange(){
+  const c=locValue("country"), pw=$("#provinceWrap"), tw=$("#townWrap");
+  tw.style.display="none";
+  if(!c){ pw.style.display="none"; return; }
+  pw.style.display="";
+  makeLocSelect("province", [], 'locLoading').disabled=true;
+  try{
+    const data=await geoFetch("/states", {country:c});
+    const names=(data.states||[]).map(s=>s.name);
+    if(names.length) makeLocSelect("province", names, 'locAllProv');
+    else makeLocInput("province",'tgtProvince');        // no data → type it
+  }catch(e){ makeLocInput("province",'tgtProvince'); }
+}
+async function onProvinceChange(){
+  const c=locValue("country"), p=locValue("province"), tw=$("#townWrap");
+  if(!p){ tw.style.display="none"; return; }
+  tw.style.display="";
+  makeLocSelect("town", [], 'locLoading').disabled=true;
+  try{
+    const data=await geoFetch("/state/cities", {country:c, state:p});
+    const names=Array.isArray(data)?data:[];
+    if(names.length) makeLocSelect("town", names, 'locAllTowns');
+    else makeLocInput("town",'tgtTown');                // API has no towns here → type it
+  }catch(e){ makeLocInput("town",'tgtTown'); }
+}
+document.addEventListener("change", e=>{
+  if(e.target.id==="country") onCountryChange();
+  else if(e.target.id==="province") onProvinceChange();
+});
+loadCountries();
+
 // Run-status shown in the right bar — stored as an i18n key so switching
 // language re-renders it correctly.
 let statusKey="stIdle";
@@ -1228,12 +1338,18 @@ function launch(kind){
   ["s-turns","s-time","s-cost"].forEach(i=>$("#"+i).style.display="none");
   tl.innerHTML=""; reportEl.innerHTML='<div class="empty">'+esc(t('rptWorking'))+'</div>';
 
+  // Target market (optional): town, province, country — narrows research scope.
+  const locParts=[locValue("town"),locValue("province"),locValue("country")].filter(Boolean);
+  const locLabel=locParts.length?` · 📍 <b>${esc(locParts.join(", "))}</b>`:"";
+  const locQ=`&country=${encodeURIComponent(locValue("country"))}`+
+             `&province=${encodeURIComponent(locValue("province"))}`+
+             `&town=${encodeURIComponent(locValue("town"))}`;
   let url;
   if(kind==="pipeline"){
     const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
-    addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>LangGraph</b> engine${tag}`+(srcSel?` · sourcing on <b>${esc(srcModel||srcProvider)}</b>`:""));
+    addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b>${locLabel} · ${esc(model)} · <b>LangGraph</b> engine${tag}`+(srcSel?` · sourcing on <b>${esc(srcModel||srcProvider)}</b>`:""));
     url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}`+
-        `&source_provider=${encodeURIComponent(srcProvider)}&source_model=${encodeURIComponent(srcModel)}&lang=${LANG}`;
+        `&source_provider=${encodeURIComponent(srcProvider)}&source_model=${encodeURIComponent(srcModel)}&lang=${LANG}`+locQ;
   } else if(kind==="sourcing"){
     const soProvider = srcProvider || provider, soModel = srcSel ? srcModel : model;
     const tag = mock?" · <b>MOCK</b>":(soProvider!=="anthropic"?` · <b>${soProvider.toUpperCase()}</b>`:"");
@@ -1241,8 +1357,8 @@ function launch(kind){
     url=`/api/sourcing?category=${encodeURIComponent(cat)}&model=${encodeURIComponent(soModel)}&provider=${soProvider}&mock=${mock}&lang=${LANG}`;
   } else {
     const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
-    addEv("","▶",`Researching <b>${esc(cat)}</b> · top ${esc(top)} · ${esc(model)}${tag}`);
-    url=`/api/research?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}&lang=${LANG}`;
+    addEv("","▶",`Researching <b>${esc(cat)}</b>${locLabel} · top ${esc(top)} · ${esc(model)}${tag}`);
+    url=`/api/research?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}&lang=${LANG}`+locQ;
   }
   es=new EventSource(url);
   es.onmessage= e=>handle(JSON.parse(e.data));
@@ -1512,7 +1628,7 @@ async function openHistRow(row){
   const strip=s=>s.replace(/[:：]\s*$/,"");
   const add=(label,val)=>{ if(val!==null&&val!==undefined&&val!=="")
     chips.push(`<span class="hparam">${esc(label)}: <b>${esc(String(val))}</b></span>`); };
-  add(t('cat'), r.category); add(t('topN'), r.top_n);
+  add(t('cat'), r.category); add(t('location'), r.location); add(t('topN'), r.top_n);
   add(t('pProvider'), r.provider); add(t('leadModel'), r.model);
   if(r.source_provider||r.source_model)
     add(t('srcModel'), [r.source_provider,r.source_model].filter(Boolean).join(" · "));
@@ -1822,10 +1938,19 @@ function applyLang(){
   // controls
   $("#cfgTitle").textContent=t('cfg');
   $("#lblCat").textContent=t('cat'); $("#cat").placeholder=t('catPh');
+  $("#lblCountry").textContent=t('tgtCountry'); $("#lblProvince").textContent=t('tgtProvince');
+  $("#lblTown").textContent=t('tgtTown');
+  // Re-label the "all/global" first option of each location select in-place.
+  for(const [id,key] of [["country",'locGlobal'],["province",'locAllProv'],["town",'locAllTowns']]){
+    const el=document.getElementById(id);
+    if(el && el.tagName==="SELECT" && el.options.length && el.options[0].value==="")
+      el.options[0].textContent=t(key);
+    if(el && el.tagName==="INPUT") el.placeholder=t(key==='locGlobal'?'tgtCountry':key==='locAllProv'?'tgtProvince':'tgtTown');
+  }
   $("#lblTop").textContent=t('topN'); $("#lblRunMode").textContent=t('runMode');
   $("#paidPh").textContent=t('paidPh'); $("#freePh").textContent=t('freePh');
   $("#lblLeadModel").textContent=t('leadModel'); $("#lblSrcModel").textContent=t('srcModel');
-  if(cheapOnly) rebuildCheapSourceModels();
+  populateSourceModel(runMode);   // re-render Stage 2 options (respects mock/cheap)
   const ss=$("#srcSame"); if(ss) ss.textContent=t('sameAsResearch');
   $("#modeHint").innerHTML=t(MODE_HINTS[runMode]||MODE_HINTS.anthropic);
   $("#pipeHint").textContent=t('pipeHint'); $("#orRow").textContent=t('orRow');
