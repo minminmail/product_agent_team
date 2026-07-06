@@ -58,6 +58,22 @@ REQUIRE_VERIFICATION = os.getenv("REQUIRE_VERIFICATION", "").strip().lower() in 
 
 app = FastAPI(title="Product Researcher Dashboard")
 
+# Test / demo mode: CHEAP_MODELS_ONLY=1 forces every run onto the cheapest
+# model per provider, no matter what the client requests. Enforced server-side
+# so it can't be bypassed with hand-crafted URLs; the UI also hides the
+# expensive options (via /api/health).
+CHEAP_MODELS_ONLY = os.getenv("CHEAP_MODELS_ONLY", "").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+_CHEAP_MODEL = {"anthropic": "haiku", "deepseek": "deepseek-v4-flash"}
+
+
+def _clamp_model(provider: str, model: str) -> str:
+    """In cheap-only mode, force the provider's cheapest model."""
+    if CHEAP_MODELS_ONLY:
+        return _CHEAP_MODEL.get((provider or "").strip().lower(), model)
+    return model
+
 # Shown when "Run on Groq" is clicked but the proxy/key isn't configured.
 _GROQ_HINT = ("Run on Groq needs GROQ_API_KEY in .env and the proxy running "
               "(./run_proxy.sh). See LITELLM_GEMINI_SETUP.md.")
@@ -278,6 +294,9 @@ async def health() -> JSONResponse:
         "gemini_configured": gemini_configured,
         "gemini_proxy_url": proxy_url,
         "gemini_proxy_reachable": proxy_reachable,
+        # Test/demo mode: server forces the cheapest model per provider;
+        # the UI hides expensive options when this is true.
+        "cheap_models_only": CHEAP_MODELS_ONLY,
     })
 
 
@@ -308,6 +327,7 @@ async def research(
     lang: str = Query("en", description="Report language: en | zh | es."),
 ) -> StreamingResponse:
     """Server-Sent Events stream of the research pipeline."""
+    model = _clamp_model(provider, model)
 
     async def event_source():
         rec = None
@@ -368,6 +388,7 @@ async def sourcing(
 
     Reads the saved predictions_<category>.json produced by the research agent.
     """
+    model = _clamp_model(provider, model)
 
     async def event_source():
         rec = None
@@ -425,11 +446,13 @@ async def pipeline(
     provider: str = Query("anthropic", description="'groq' to force the free proxy."),
     source_provider: str = Query("", description="Provider for Stage 2 sourcing; blank = same as research."),
     source_model: str = Query("", description="Model for Stage 2 sourcing; blank = same as research."),
-    engine: str = Query("", description="'langgraph' to use the LangGraph engine; else deterministic."),
     mock: bool = Query(False, description="Run the whole pipeline offline (no API key/credits)."),
     lang: str = Query("en", description="Report language: en | zh | es."),
 ) -> StreamingResponse:
     """SSE stream of the orchestrator (Amanda): research, then supplier sourcing."""
+    model = _clamp_model(provider, model)
+    if source_provider.strip():
+        source_model = _clamp_model(source_provider, source_model)
 
     async def event_source():
         rec = None
@@ -441,7 +464,7 @@ async def pipeline(
             rec = history.RunRecorder(email, "pipeline", {
                 "category": category, "top": top, "provider": provider,
                 "model": model, "source_provider": source_provider,
-                "source_model": source_model, "engine": engine or "standard",
+                "source_model": source_model, "engine": "langgraph",
                 "lang": lang, "mock": mock})
             force_env = None
             run_model = model
@@ -468,20 +491,13 @@ async def pipeline(
                         msg = "Sourcing model needs ANTHROPIC_API_KEY set."
                         rec.observe({"type": "error", "message": msg})
                         yield _sse({"type": "error", "message": msg}); return
-            # Engine selection: explicit ?engine=langgraph, else USE_LANGGRAPH env.
-            use_langgraph = (engine.strip().lower() == "langgraph") or (
-                engine == "" and
-                os.getenv("USE_LANGGRAPH", "").strip().lower() in ("1", "true", "yes", "on"))
-            if use_langgraph:
-                try:
-                    from orchestrator.graph import run_pipeline_graph as run_pipeline
-                except ImportError:
-                    msg = "LangGraph engine isn't installed. Run: pip install langgraph"
-                    rec.observe({"type": "error", "message": msg})
-                    yield _sse({"type": "error", "message": msg})
-                    return
-            else:
-                from orchestrator.pipeline import run_pipeline
+            try:
+                from orchestrator.graph import run_pipeline_graph as run_pipeline
+            except ImportError:
+                msg = "LangGraph isn't installed. Run: pip install langgraph"
+                rec.observe({"type": "error", "message": msg})
+                yield _sse({"type": "error", "message": msg})
+                return
             async for ev in run_pipeline(category, top, source_top, per, REPORTS_DIR, run_model, mock,
                                          force_env=force_env, sourcing_model=sourcing_model,
                                          sourcing_force_env=sourcing_force_env, lang=lang):

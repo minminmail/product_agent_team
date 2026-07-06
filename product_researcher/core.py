@@ -66,8 +66,13 @@ def parse_report_products(markdown: str) -> list:
         if not line.startswith("|"):
             continue
         cells = [c.strip() for c in line.strip("|").split("|")]
-        if len(cells) < 2 or not re.match(r"^\d+$", cells[0]):
-            continue  # only numbered data rows
+        # Numbered data rows — tolerate decoration around the rank number
+        # ("1", "1.", "**1**", "1)", full-width "１"…), which multilingual /
+        # weaker models produce.
+        rank = re.sub(r"[*_`~\s.()（）。]", "", cells[0] if cells else "")
+        rank = rank.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+        if len(cells) < 2 or not re.match(r"^\d+$", rank):
+            continue
         name = cells[1].replace("*", "").strip()
         if not name or name.lower() == "product":
             continue

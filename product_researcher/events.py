@@ -169,7 +169,9 @@ def _read_dotenv_value(key: str) -> str | None:
                     k, v = line.split("=", 1)
                     if k.strip() == key:
                         return v.strip().strip('"').strip("'")
-        except FileNotFoundError:
+        except OSError:
+            # Missing OR unreadable (e.g. permission denied) — never crash a
+            # request over a backstop lookup; fall through to the next candidate.
             continue
     return None
 

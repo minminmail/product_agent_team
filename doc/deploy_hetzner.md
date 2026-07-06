@@ -39,8 +39,7 @@ Option B — via git if the project is in a repo: `git clone <repo> /opt/agent_t
 ```bash
 cd /opt/agent_team
 python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
-./venv/bin/pip install langgraph          # for the LangGraph engine
+./venv/bin/pip install -r requirements.txt   # includes langgraph (the pipeline engine)
 
 cat > .env <<'ENV'
 ANTHROPIC_API_KEY=sk-ant-...

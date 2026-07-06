@@ -1,4 +1,4 @@
-"""LangGraph version of the orchestrator.
+"""The orchestrator pipeline — a LangGraph StateGraph.
 
 The research stage is decomposed into explicit nodes so the team's structure is
 visible in the graph — and so the two independent analysts run **in parallel**:
@@ -15,15 +15,12 @@ visible in the graph — and so the two independent analysts run **in parallel**
 from `market_analyst` and both feed `predictor`, so LangGraph schedules them in
 the same superstep and awaits them together — true parallel execution.
 
-It yields the *exact same* event dicts as the deterministic orchestrator, so the
-existing dashboard/SSE works unchanged. Streaming is done with an asyncio.Queue:
-the graph runs as a task and each node pushes events onto the queue, which this
-async generator drains.
+Streaming is done with an asyncio.Queue: the graph runs as a task and each node
+pushes events onto the queue, which this async generator drains.
 
-Requires `pip install langgraph`. Selected at runtime via USE_LANGGRAPH=1 or the
-orchestrator CLI's --langgraph flag; the default orchestrator has no LangGraph
-dependency. Mock mode is fully self-contained (no SDK); live mode drives each
-node with a focused single-subagent query via product_researcher.events.
+This is the pipeline engine (requires `pip install langgraph`). Mock mode is
+fully self-contained (no SDK); live mode drives each node with a focused
+single-subagent query via product_researcher.events.
 """
 
 from __future__ import annotations
@@ -34,8 +31,10 @@ from typing import AsyncIterator, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-# Sizing defaults shared with the deterministic orchestrator.
-from .pipeline import DEFAULT_PER_PRODUCT, DEFAULT_SOURCE_TOP, DEFAULT_TOP
+# Default sizing (one place to tune the run).
+DEFAULT_TOP = 5            # products the research agent ranks
+DEFAULT_SOURCE_TOP = 2     # top products to source suppliers for
+DEFAULT_PER_PRODUCT = 5    # suppliers per product
 
 
 class PipelineState(TypedDict, total=False):
@@ -406,7 +405,7 @@ async def run_pipeline_graph(
     sourcing_force_env: dict | None = None,
     lang: str = "en",
 ) -> AsyncIterator[dict]:
-    """Run the LangGraph pipeline, yielding the same events as run_pipeline().
+    """Run the LangGraph pipeline, yielding plain-dict events for the UI/CLI.
     force_env routes every node through the proxy (Groq button).
     sourcing_model / sourcing_force_env let Stage 2 use a different model/provider."""
     reports_dir = os.path.abspath(reports_dir)

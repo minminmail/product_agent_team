@@ -383,12 +383,6 @@
             <option value="groq|">Groq (free)</option>
           </select>
         </div>
-        <label style="margin-top:4px" id="lblEngine">Pipeline engine</label>
-        <div class="toggle" id="engineToggle">
-          <button type="button" class="seg" id="eng-standard">⚙ Standard</button>
-          <button type="button" class="seg active" id="eng-langgraph">◇ LangGraph</button>
-        </div>
-        <div class="mode-hint" id="engineHint">Pipeline engine. LangGraph needs <code>pip install langgraph</code>.</div>
       </div>
       <button id="pipe" class="agent-btn primary"></button>
       <div class="mode-hint" id="pipeHint">Amanda runs the full pipeline: research → suppliers.</div>
@@ -400,7 +394,7 @@
 
     <div class="team" id="team"></div>
 
-    <div class="graphwrap" id="graphPanel" style="display:none">
+    <div class="graphwrap" id="graphPanel">
       <div class="ttl">◇ LangGraph · StateGraph <span id="graphStatus" style="color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0"></span></div>
       <svg viewBox="0 0 360 462" width="100%" style="max-width:340px;display:block;margin:0 auto">
         <defs>
@@ -540,13 +534,11 @@ en:{
   sub:"multi-agent market scan &amp; prediction · Claude Agent SDK",
   cfg:"Configuration", cat:"Product category / market", catPh:"e.g. smart home gadgets", topN:"Top N",
   runMode:"Run mode", paidPh:"💳 Paid…", freePh:"🆓 Free…",
-  leadModel:"Lead model", srcModel:"Sourcing model · Stage 2", sameAsResearch:"Same as research", engine:"Pipeline engine",
+  leadModel:"Lead model", srcModel:"Sourcing model · Stage 2", sameAsResearch:"Same as research",
   hintAnthropic:"Anthropic API — uses your key &amp; credits for real research.",
   hintDeepseek:"DeepSeek API (paid) — calls DeepSeek directly. Needs <code>DEEPSEEK_API_KEY</code> in .env (no proxy).",
   hintGroq:"Groq (free) — routes via the local proxy → Groq. Needs <code>./run_proxy.sh</code> running.",
   hintMock:"Mock — fully offline, no API key or credits used.",
-  engLG:"LangGraph engine — a StateGraph with a conditional edge. Needs <code>pip install langgraph</code>.",
-  engStd:"Standard engine — the lightweight deterministic orchestrator.",
   pipeBtn:"Run full pipeline", runBtn:"Run research", sourceBtn:"Source suppliers",
   pipeHint:"Amanda runs the full pipeline: research → suppliers.", orRow:"or run a single stage",
   srcReady:"Stage 2 ready — a research report exists for this category.",
@@ -575,7 +567,7 @@ en:{
   histNoAgents:"No per-agent output captured.",
   kindResearch:"research", kindSourcing:"sourcing", kindPipeline:"full pipeline",
   stageResearch:"Research report", stageSourcing:"Supplier report",
-  pProvider:"provider", pEngine:"engine",
+  pProvider:"provider",
   stages:{"Stage 1 · Research":"Stage 1 · Research","Stage 2 · Sourcing":"Stage 2 · Sourcing"},
   roles:{"Orchestrator":"Orchestrator","Product Researcher":"Product Researcher","Supplier Sourcer":"Supplier Sourcer",
          "Audience Researcher":"Audience Researcher","Competitor Analyst":"Competitor Analyst","Predictor":"Predictor"},
@@ -596,13 +588,11 @@ zh:{
   sub:"多智能体市场扫描与预测 · Claude Agent SDK",
   cfg:"配置", cat:"产品品类 / 市场", catPh:"例如：智能家居产品", topN:"前 N 名",
   runMode:"运行模式", paidPh:"💳 付费…", freePh:"🆓 免费…",
-  leadModel:"主模型", srcModel:"采购模型 · 第二阶段", sameAsResearch:"与研究相同", engine:"流水线引擎",
+  leadModel:"主模型", srcModel:"采购模型 · 第二阶段", sameAsResearch:"与研究相同",
   hintAnthropic:"Anthropic API——使用您的密钥和额度进行真实研究。",
   hintDeepseek:"DeepSeek API（付费）——直接调用 DeepSeek。需要在 .env 中设置 <code>DEEPSEEK_API_KEY</code>（无需代理）。",
   hintGroq:"Groq（免费）——通过本地代理 → Groq。需要运行 <code>./run_proxy.sh</code>。",
   hintMock:"Mock——完全离线，不使用 API 密钥或额度。",
-  engLG:"LangGraph 引擎——带条件边的 StateGraph。需要 <code>pip install langgraph</code>。",
-  engStd:"标准引擎——轻量的确定性编排器。",
   pipeBtn:"运行完整流水线", runBtn:"运行研究", sourceBtn:"寻找供应商",
   pipeHint:"Amanda 运行完整流水线：研究 → 供应商。", orRow:"或运行单个阶段",
   srcReady:"第二阶段就绪——该品类已有研究报告。",
@@ -631,7 +621,7 @@ zh:{
   histNoAgents:"未捕获各智能体的输出。",
   kindResearch:"研究", kindSourcing:"采购", kindPipeline:"完整流水线",
   stageResearch:"研究报告", stageSourcing:"供应商报告",
-  pProvider:"提供商", pEngine:"引擎",
+  pProvider:"提供商",
   stages:{"Stage 1 · Research":"第一阶段 · 研究","Stage 2 · Sourcing":"第二阶段 · 采购"},
   roles:{"Orchestrator":"编排者","Product Researcher":"产品研究员","Supplier Sourcer":"供应商采购员",
          "Audience Researcher":"受众研究员","Competitor Analyst":"竞品分析师","Predictor":"预测师"},
@@ -653,13 +643,11 @@ es:{
   sub:"escaneo y predicción de mercado multiagente · Claude Agent SDK",
   cfg:"Configuración", cat:"Categoría de producto / mercado", catPh:"p. ej. gadgets de hogar inteligente", topN:"Top N",
   runMode:"Modo de ejecución", paidPh:"💳 De pago…", freePh:"🆓 Gratis…",
-  leadModel:"Modelo principal", srcModel:"Modelo de sourcing · Etapa 2", sameAsResearch:"Igual que investigación", engine:"Motor del pipeline",
+  leadModel:"Modelo principal", srcModel:"Modelo de sourcing · Etapa 2", sameAsResearch:"Igual que investigación",
   hintAnthropic:"API de Anthropic — usa tu clave y créditos para investigación real.",
   hintDeepseek:"API de DeepSeek (de pago) — llama a DeepSeek directamente. Requiere <code>DEEPSEEK_API_KEY</code> en .env (sin proxy).",
   hintGroq:"Groq (gratis) — vía el proxy local → Groq. Requiere <code>./run_proxy.sh</code> en marcha.",
   hintMock:"Mock — totalmente offline, sin clave API ni créditos.",
-  engLG:"Motor LangGraph — un StateGraph con arista condicional. Requiere <code>pip install langgraph</code>.",
-  engStd:"Motor estándar — el orquestador determinista ligero.",
   pipeBtn:"Ejecutar pipeline completo", runBtn:"Ejecutar investigación", sourceBtn:"Buscar proveedores",
   pipeHint:"Amanda ejecuta el pipeline completo: investigación → proveedores.", orRow:"o ejecuta una sola etapa",
   srcReady:"Etapa 2 lista — existe un informe de investigación para esta categoría.",
@@ -688,7 +676,7 @@ es:{
   histNoAgents:"No se capturó salida por agente.",
   kindResearch:"investigación", kindSourcing:"sourcing", kindPipeline:"pipeline completo",
   stageResearch:"Informe de investigación", stageSourcing:"Informe de proveedores",
-  pProvider:"proveedor", pEngine:"motor",
+  pProvider:"proveedor",
   stages:{"Stage 1 · Research":"Etapa 1 · Investigación","Stage 2 · Sourcing":"Etapa 2 · Sourcing"},
   roles:{"Orchestrator":"Orquestadora","Product Researcher":"Investigadora de producto","Supplier Sourcer":"Buscador de proveedores",
          "Audience Researcher":"Investigadora de audiencia","Competitor Analyst":"Analista de competencia","Predictor":"Predictor"},
@@ -845,9 +833,27 @@ const MODELS = {
   deepseek:  [["deepseek-chat","Chat (recommended)"],["deepseek-reasoner","Reasoner (thinking)"],
               ["deepseek-v4-flash","V4 Flash (cheapest)"],["deepseek-v4-pro","V4 Pro"]],
 };
+// Test/demo mode (server-enforced): only the cheapest model per provider.
+let cheapOnly=false;
+const MODELS_CHEAP = {
+  anthropic: [["haiku","Haiku (cheapest)"]],
+  deepseek:  [["deepseek-v4-flash","V4 Flash (cheapest)"]],
+};
+function rebuildCheapSourceModels(){
+  // Cheap/test mode: Stage 2 sourcing is locked to DeepSeek V4 Flash only.
+  const sm=$("#sourceModel"); if(!sm) return;
+  sm.innerHTML=`<option value="deepseek|deepseek-v4-flash" selected>DeepSeek · V4 Flash</option>`;
+  sm.disabled=true;   // single forced choice — nothing to pick
+}
+function applyCheapMode(on){
+  if(cheapOnly===on) return;
+  cheapOnly=on;
+  if(on) rebuildCheapSourceModels();
+  populateModels(runMode);
+}
 function populateModels(mode){
   const sel=$("#model"); if(!sel) return;
-  const list=MODELS[mode];
+  const list=(cheapOnly ? MODELS_CHEAP : MODELS)[mode];
   sel.innerHTML="";
   if(!list){                       // free providers → empty + disabled
     sel.disabled=true; sel.title="No model choice for this provider";
@@ -871,18 +877,6 @@ function setRunMode(mode){
 $("#paidSelect").addEventListener("change", e=>{ if(running){ e.target.value = PAID_MODES.includes(runMode)?runMode:""; return; } if(e.target.value) setRunMode(e.target.value); });
 $("#freeSelect").addEventListener("change", e=>{ if(running){ e.target.value = FREE_MODES.includes(runMode)?runMode:""; return; } if(e.target.value) setRunMode(e.target.value); });
 setRunMode("anthropic");
-
-let engine="langgraph";   // default: drives every agent as an explicit node
-function setEngine(e){
-  engine=e;
-  $("#eng-standard").classList.toggle("active", e==="standard");
-  $("#eng-langgraph").classList.toggle("active", e==="langgraph");
-  $("#engineHint").innerHTML = e==="langgraph" ? t('engLG') : t('engStd');
-  $("#graphPanel").style.display = e==="langgraph" ? "" : "none";
-}
-$("#eng-standard").addEventListener("click", ()=>{ if(!running) setEngine("standard"); });
-$("#eng-langgraph").addEventListener("click", ()=>{ if(!running) setEngine("langgraph"); });
-setEngine(engine);   // apply default (LangGraph) — shows the graph panel + hint
 
 // LangGraph node highlighting (driven by the same stage events).
 function setGraphNode(name, state){
@@ -1193,6 +1187,7 @@ async function checkHealth(){
     h.className="dot "+(j.has_key?"ok":"bad");
     h.title=j.has_key?"API key detected":"ANTHROPIC_API_KEY missing on server";
     if(j.base_url){ apiBaseUrl=j.base_url; apiCustom=!!j.custom_endpoint; }
+    applyCheapMode(!!j.cheap_models_only);
     updateProxyChip(j);
   }catch(e){ $("#health").className="dot bad"; }
 }
@@ -1220,7 +1215,7 @@ function launch(kind){
     addLog("api","DEEPSEEK",`Calling DeepSeek API directly (paid) (${kind})`);
   } else {
     const tgt = apiCustom ? `${apiBaseUrl} (custom endpoint)` : `${apiBaseUrl} (Anthropic)`;
-    addLog("api","ANTHROPIC",`Calling Anthropic API: ${tgt} · model ${model}`+(kind==="pipeline"?` · ${engine} engine`:""));
+    addLog("api","ANTHROPIC",`Calling Anthropic API: ${tgt} · model ${model}`+(kind==="pipeline"?` · LangGraph engine`:""));
   }
   if(kind==="pipeline"){ setStatus("orc","working"); setStatus("s1","waiting"); setStatus("s2","waiting"); }
   else if(kind==="sourcing"){ setStatus("s2","working"); }
@@ -1235,10 +1230,9 @@ function launch(kind){
 
   let url;
   if(kind==="pipeline"){
-    const engLabel = engine==="langgraph" ? "LangGraph" : "Standard";
     const tag = mock?" · <b>MOCK</b>":(provider!=="anthropic"?` · <b>${provider.toUpperCase()}</b>`:"");
-    addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>${engLabel}</b> engine${tag}`+(srcSel?` · sourcing on <b>${esc(srcModel||srcProvider)}</b>`:""));
-    url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&engine=${engine}&provider=${provider}&mock=${mock}`+
+    addEv("","🧭",`Amanda running the full pipeline for <b>${esc(cat)}</b> · ${esc(model)} · <b>LangGraph</b> engine${tag}`+(srcSel?` · sourcing on <b>${esc(srcModel||srcProvider)}</b>`:""));
+    url=`/api/pipeline?category=${encodeURIComponent(cat)}&top=${encodeURIComponent(top)}&model=${encodeURIComponent(model)}&provider=${provider}&mock=${mock}`+
         `&source_provider=${encodeURIComponent(srcProvider)}&source_model=${encodeURIComponent(srcModel)}&lang=${LANG}`;
   } else if(kind==="sourcing"){
     const soProvider = srcProvider || provider, soModel = srcSel ? srcModel : model;
@@ -1522,7 +1516,7 @@ async function openHistRow(row){
   add(t('pProvider'), r.provider); add(t('leadModel'), r.model);
   if(r.source_provider||r.source_model)
     add(t('srcModel'), [r.source_provider,r.source_model].filter(Boolean).join(" · "));
-  add(t('pEngine'), r.engine); add(t('language'), r.lang);
+  add(t('language'), r.lang);
   if(r.mock) chips.push('<span class="hparam"><b>MOCK</b></span>');
   if(r.cost_usd!=null) add(strip(t('cost')), "$"+Number(r.cost_usd).toFixed(4));
   if(r.duration_ms) add(strip(t('time')), fmtMs(r.duration_ms));
@@ -1831,9 +1825,9 @@ function applyLang(){
   $("#lblTop").textContent=t('topN'); $("#lblRunMode").textContent=t('runMode');
   $("#paidPh").textContent=t('paidPh'); $("#freePh").textContent=t('freePh');
   $("#lblLeadModel").textContent=t('leadModel'); $("#lblSrcModel").textContent=t('srcModel');
-  $("#srcSame").textContent=t('sameAsResearch'); $("#lblEngine").textContent=t('engine');
+  if(cheapOnly) rebuildCheapSourceModels();
+  const ss=$("#srcSame"); if(ss) ss.textContent=t('sameAsResearch');
   $("#modeHint").innerHTML=t(MODE_HINTS[runMode]||MODE_HINTS.anthropic);
-  setEngine(engine);
   $("#pipeHint").textContent=t('pipeHint'); $("#orRow").textContent=t('orRow');
   applySourceState();
   if(!running){

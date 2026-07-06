@@ -3,6 +3,5 @@ python-dotenv>=1.0.0
 fastapi>=0.110.0
 uvicorn>=0.29.0
 
-# Optional: only needed for the LangGraph orchestrator engine (USE_LANGGRAPH=1
-# or `orchestrator.main --langgraph`). The default orchestrator doesn't need it.
-# langgraph>=0.2
+# Pipeline engine — the orchestrator runs on LangGraph.
+langgraph>=0.2
