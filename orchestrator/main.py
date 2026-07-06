@@ -21,25 +21,20 @@ try:
 except Exception:  # dotenv is optional
     pass
 
-from .pipeline import (
+from .graph import (
     DEFAULT_PER_PRODUCT,
     DEFAULT_SOURCE_TOP,
     DEFAULT_TOP,
-    run_pipeline,
+    run_pipeline_graph,
 )
 
 
-async def run(category, top, source_top, per_product, reports_dir, model, mock, langgraph=False):
+async def run(category, top, source_top, per_product, reports_dir, model, mock):
     tag = " [MOCK]" if mock else ""
-    engine = "LangGraph" if langgraph else "deterministic"
     print(f"\n🧭 Amanda is orchestrating the full pipeline for {category!r}{tag} "
-          f"({engine} engine)\n", flush=True)
-    if langgraph:
-        from .graph import run_pipeline_graph as runner
-    else:
-        runner = run_pipeline
-    async for ev in runner(category, top, source_top, per_product,
-                           reports_dir, model, mock):
+          f"(LangGraph engine)\n", flush=True)
+    async for ev in run_pipeline_graph(category, top, source_top, per_product,
+                                       reports_dir, model, mock):
         kind = ev["type"]
         if kind == "stage":
             print(f"\n══ {ev.get('label', ev['stage'])} ══", flush=True)
@@ -69,8 +64,6 @@ def main(argv=None) -> int:
     p.add_argument("--model", default="haiku", help="Lead model (haiku/sonnet/opus).")
     p.add_argument("--mock", action="store_true",
                    help="Run the whole pipeline offline (no API key or credits).")
-    p.add_argument("--langgraph", action="store_true",
-                   help="Use the LangGraph engine (pip install langgraph).")
     args = p.parse_args(argv)
 
     if not args.mock and not os.getenv("ANTHROPIC_API_KEY"):
@@ -80,7 +73,7 @@ def main(argv=None) -> int:
 
     reports_dir = os.path.abspath(args.out)
     asyncio.run(run(args.category, args.top, args.source_top, args.per,
-                    reports_dir, args.model, args.mock, args.langgraph))
+                    reports_dir, args.model, args.mock))
     print(f"\n📂 Outputs in {reports_dir}: predictions_*.json, suppliers_*.json")
     return 0
 

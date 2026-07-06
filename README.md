@@ -290,7 +290,7 @@ agent_team/
 │  ├─ mock.py      # fully offline sourcing pipeline
 │  └─ main.py      # sourcing CLI
 ├─ orchestrator/            # Amanda — chains agent 1 → agent 2 in one run
-│  ├─ pipeline.py  # run_pipeline(): research then sourcing (deterministic, mock-aware)
+│  ├─ graph.py     # run_pipeline_graph(): LangGraph StateGraph — research then sourcing (mock-aware)
 │  └─ main.py      # orchestrator CLI
 ├─ static/index.html  # single-file dashboard (Run full pipeline + the two single-stage buttons)
 ├─ requirements.txt
@@ -304,34 +304,29 @@ the tool into the team's `tools.py` MCP server.
 
 ### Orchestrator (Amanda)
 
-`orchestrator` is a tiny **deterministic** coordinator — no extra LLM. It runs the
-research agent, waits for its `predictions_*.json`, then runs the sourcing agent on
-it. The two agents stay independently runnable; Amanda just adds a one-shot path
-(CLI `python -m orchestrator.main …`, or the **Run full pipeline** button in the
-dashboard, `GET /api/pipeline`). If research produces no products, it stops before
-sourcing.
+`orchestrator` is a coordinator — no extra LLM. It runs the research agent,
+waits for its `predictions_*.json`, then runs the sourcing agent on it. The two
+agents stay independently runnable; Amanda just adds a one-shot path (CLI
+`python -m orchestrator.main …`, or the **Run full pipeline** button in the
+dashboard, `GET /api/pipeline`). If research produces no products, it stops
+before sourcing.
 
-#### Optional: LangGraph engine (proof-of-concept)
-
-The same pipeline is also implemented as a LangGraph `StateGraph` in
-`orchestrator/graph.py` — research and sourcing as **nodes**, with a
-**conditional edge** that only routes to sourcing if research produced products.
-It yields the identical event stream, so the dashboard works unchanged.
+The pipeline is a LangGraph `StateGraph` (`orchestrator/graph.py`): the research
+stage is decomposed into explicit **nodes** (with the two analysts running in
+parallel), and a **conditional edge** only routes to sourcing if research
+produced products.
 
 ```bash
-pip install langgraph
-python -m orchestrator.main "smart home gadgets" --mock --langgraph   # CLI
-USE_LANGGRAPH=1 python -m product_researcher.server                   # dashboard
+python -m orchestrator.main "smart home gadgets" --mock   # CLI
+python -m product_researcher.server                       # dashboard
 ```
 
 ```
-START → research → (has products?) → sourcing → END
-                          └────────── no ─────────────→ END
+START → trend_scout → market_analyst → audience_researcher ┐
+                                     → competitor_analyst  ┴→ predictor
+predictor → (has products?) → sourcing → END
+                 └────────── no ────────→ END
 ```
-
-Optional and off by default. For this linear, 2-stage flow the deterministic
-orchestrator is simpler; LangGraph earns its place once you add branching,
-loops/retries, parallel fan-out, checkpointing, or human-in-the-loop.
 
 ## Tuning
 
@@ -341,9 +336,9 @@ loops/retries, parallel fan-out, checkpointing, or human-in-the-loop.
 - **Lead briefs** live in each package's `events.py` (`build_lead_prompt`, `run_stream`).
 - **Dashboard** is `product_researcher/server.py` (serves both agents via `/api/research` and `/api/sourcing`) + `static/index.html`.
 
-### Why the Claude Agent SDK (not LangChain/LangGraph)?
+### Why the Claude Agent SDK + LangGraph?
 
-The SDK gives subagent orchestration, tool calling, web search and permissions out of the box, so the team stays small. The dashboard taps the SDK's structured message stream directly — no extra framework needed just to observe the agents. LangGraph would only earn its place if you needed deterministic, branching control over the pipeline or model-swapping; for "run the team and watch it," this is simpler and more robust.
+The SDK gives subagent orchestration, tool calling, web search and permissions out of the box, so the team stays small, and the dashboard taps its structured message stream directly. LangGraph sits one level up as the pipeline engine: the `StateGraph` gives deterministic, branching control over the stages — parallel fan-out for the analysts, a conditional edge that skips sourcing when research fails — while each node delegates the actual agent work to the SDK.
 
 ## Notes
 

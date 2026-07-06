@@ -1,4 +1,4 @@
-"""LangGraph version of the orchestrator.
+"""The orchestrator pipeline — a LangGraph StateGraph.
 
 The research stage is decomposed into explicit nodes so the team's structure is
 visible in the graph — and so the two independent analysts run **in parallel**:
@@ -15,15 +15,12 @@ visible in the graph — and so the two independent analysts run **in parallel**
 from `market_analyst` and both feed `predictor`, so LangGraph schedules them in
 the same superstep and awaits them together — true parallel execution.
 
-It yields the *exact same* event dicts as the deterministic orchestrator, so the
-existing dashboard/SSE works unchanged. Streaming is done with an asyncio.Queue:
-the graph runs as a task and each node pushes events onto the queue, which this
-async generator drains.
+Streaming is done with an asyncio.Queue: the graph runs as a task and each node
+pushes events onto the queue, which this async generator drains.
 
-Requires `pip install langgraph`. Selected at runtime via USE_LANGGRAPH=1 or the
-orchestrator CLI's --langgraph flag; the default orchestrator has no LangGraph
-dependency. Mock mode is fully self-contained (no SDK); live mode drives each
-node with a focused single-subagent query via product_researcher.events.
+This is the pipeline engine (requires `pip install langgraph`). Mock mode is
+fully self-contained (no SDK); live mode drives each node with a focused
+single-subagent query via product_researcher.events.
 """
 
 from __future__ import annotations
@@ -34,8 +31,10 @@ from typing import AsyncIterator, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-# Sizing defaults shared with the deterministic orchestrator.
-from .pipeline import DEFAULT_PER_PRODUCT, DEFAULT_SOURCE_TOP, DEFAULT_TOP
+# Default sizing (one place to tune the run).
+DEFAULT_TOP = 5            # products the research agent ranks
+DEFAULT_SOURCE_TOP = 2     # top products to source suppliers for
+DEFAULT_PER_PRODUCT = 5    # suppliers per product
 
 
 class PipelineState(TypedDict, total=False):
@@ -59,6 +58,9 @@ class PipelineState(TypedDict, total=False):
     sourcing_force_env: dict    # Stage 2 proxy/provider env override
     research_ok: bool
     lang: str                   # report/output language ("en" | "zh" | "es")
+    country: str                # optional target market — country level
+    province: str               # optional target market — province/state level
+    town: str                   # optional target market — town/city level
 
 
 # --------------------------------------------------------------------------- #
@@ -113,6 +115,14 @@ def _lang_note(state: "PipelineState") -> str:
     return lang_instruction(state.get("lang"))
 
 
+def _loc_note(state: "PipelineState") -> str:
+    """Target-market directive appended to every live segment prompt; empty
+    when no country/province/town was selected (global research)."""
+    from product_researcher.events import location_instruction
+    return location_instruction(state.get("country", ""), state.get("province", ""),
+                                state.get("town", ""))
+
+
 def _cap(text: str, limit: int = 2500) -> str:
     """Trim threaded context so per-request token counts stay manageable
     (matters a lot for small free-tier limits like Groq's 12k TPM)."""
@@ -131,9 +141,12 @@ def _predictor_prompt(category: str, top: int, output_dir: str,
         f"Call the `predictor` subagent to turn the market-analyst's sub-scores "
         f"below into final 0-100 opportunity scores (it must use the {TOOL_SCORE} "
         f"tool) and rank them. Take the top {top}. Then call `{TOOL_SAVE}` with "
-        f'category="{category}", output_dir="{output_dir}", and products=[...] '
+        f'category="{category}" (EXACTLY this string, do not translate or rephrase it), '
+        f'output_dir="{output_dir}", and products=[...] '
         f"(each: name, score, verdict, rationale, evidence, sub_scores (demand, "
-        f"growth, margin, competition, feasibility), pricing).\n\n"
+        f"growth, margin, competition, feasibility), pricing). The `{TOOL_SAVE}` "
+        f"call is MANDATORY and must happen BEFORE you write the report — a run "
+        f"that never calls it is a FAILED run.\n\n"
         f"Finally output a clean Markdown report with: an executive summary; a "
         f"table of the top {top} (Rank | Product | Score | Verdict | Price | Why); "
         f"a 'Product images' section — for each top product a bolded name line plus "
@@ -179,7 +192,7 @@ def _build_graph(emit):
             return {"candidates": cands}
         from product_researcher.events import run_segment
         text: list[str] = []; err = False
-        async for ev in run_segment(_trend_prompt(state["category"]) + _lang_note(state),
+        async for ev in run_segment(_trend_prompt(state["category"]) + _loc_note(state) + _lang_note(state),
                                     state["model"], state["reports_dir"], text,
                                     force_env=state.get("force_env"), only_agent="trend-scout"):
             if ev.get("type") == "error":
@@ -216,7 +229,7 @@ def _build_graph(emit):
             return {"analysed": analysed}
         from product_researcher.events import run_segment
         text: list[str] = []; err = False
-        async for ev in run_segment(_analyst_prompt(state["category"], state.get("candidates_text", "")) + _lang_note(state),
+        async for ev in run_segment(_analyst_prompt(state["category"], state.get("candidates_text", "")) + _loc_note(state) + _lang_note(state),
                                     state["model"], state["reports_dir"], text,
                                     force_env=state.get("force_env"), only_agent="market-analyst"):
             if ev.get("type") == "error":
@@ -242,7 +255,7 @@ def _build_graph(emit):
             return {}
         from product_researcher.events import run_segment
         text: list[str] = []
-        async for ev in run_segment(_audience_prompt(state["category"], state.get("candidates_text", "")) + _lang_note(state),
+        async for ev in run_segment(_audience_prompt(state["category"], state.get("candidates_text", "")) + _loc_note(state) + _lang_note(state),
                                     state["model"], state["reports_dir"], text,
                                     force_env=state.get("force_env"), only_agent="audience-researcher"):
             await emit(ev)
@@ -266,7 +279,7 @@ def _build_graph(emit):
             return {}
         from product_researcher.events import run_segment
         text: list[str] = []
-        async for ev in run_segment(_competitor_prompt(state["category"], state.get("candidates_text", "")) + _lang_note(state),
+        async for ev in run_segment(_competitor_prompt(state["category"], state.get("candidates_text", "")) + _loc_note(state) + _lang_note(state),
                                     state["model"], state["reports_dir"], text,
                                     force_env=state.get("force_env"), only_agent="competitor-analyst"):
             await emit(ev)
@@ -312,7 +325,7 @@ def _build_graph(emit):
             _predictor_prompt(state["category"], state["top"], state["reports_dir"],
                               state.get("analysis_text", ""), state.get("audience_text", ""),
                               state.get("competitor_text", ""),
-                              state.get("candidates_text", "")) + _lang_note(state),
+                              state.get("candidates_text", "")) + _loc_note(state) + _lang_note(state),
             state["model"], state["reports_dir"], text,
             force_env=state.get("force_env"), only_agent="predictor",
         ):
@@ -326,13 +339,23 @@ def _build_graph(emit):
         if ok:
             # Safeguard: if the model didn't call save_results, derive the
             # predictions file from the report so Stage 2 can find it.
-            from product_researcher.core import ensure_predictions_saved
+            from product_researcher.core import ensure_predictions_saved, predictions_path
             saved = ensure_predictions_saved(state["category"], state["reports_dir"], report)
             if saved:
                 await emit({"type": "tool", "name": "mcp__research-tools__save_results",
                             "agent": "lead", "summary": "save: predictions (from report)"})
             await emit({"type": "result", "duration_ms": None, "cost_usd": None,
                         "num_turns": None, "is_error": False, "report": report})
+            # Stage 2 needs the handoff file. If the model skipped the save tool
+            # AND the report table couldn't be parsed, stop here with a clear
+            # message instead of letting sourcing fail with "no report found".
+            if not os.path.isfile(predictions_path(state["category"], state["reports_dir"])):
+                await emit({"type": "error", "message": (
+                    f"Research finished but no predictions file could be saved for "
+                    f"'{state['category']}' (the model skipped the save tool and the "
+                    f"report table could not be parsed) — skipping supplier sourcing. "
+                    f"Re-run the research, ideally with a stronger model.")})
+                return {"research_ok": False}
         else:
             await emit({"type": "error",
                         "message": "Research stage did not complete — skipping supplier sourcing."})
@@ -405,10 +428,14 @@ async def run_pipeline_graph(
     sourcing_model: str | None = None,
     sourcing_force_env: dict | None = None,
     lang: str = "en",
+    country: str = "",
+    province: str = "",
+    town: str = "",
 ) -> AsyncIterator[dict]:
-    """Run the LangGraph pipeline, yielding the same events as run_pipeline().
+    """Run the LangGraph pipeline, yielding plain-dict events for the UI/CLI.
     force_env routes every node through the proxy (Groq button).
-    sourcing_model / sourcing_force_env let Stage 2 use a different model/provider."""
+    sourcing_model / sourcing_force_env let Stage 2 use a different model/provider.
+    country/province/town: optional target market — scopes the research stage."""
     reports_dir = os.path.abspath(reports_dir)
     os.makedirs(reports_dir, exist_ok=True)
 
@@ -423,7 +450,7 @@ async def run_pipeline_graph(
         "per_product": per_product, "reports_dir": reports_dir,
         "model": model, "mock": mock, "force_env": force_env,
         "sourcing_model": sourcing_model, "sourcing_force_env": sourcing_force_env,
-        "lang": lang,
+        "lang": lang, "country": country, "province": province, "town": town,
     }
 
     async def run() -> None:

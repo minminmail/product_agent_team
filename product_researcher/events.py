@@ -55,7 +55,28 @@ def lang_instruction(lang: str | None) -> str:
             f"Keep tool names and JSON field KEYS in English (translate field values).")
 
 
-def build_lead_prompt(category: str, top: int, output_dir: str, lang: str = "en") -> str:
+def location_phrase(country: str = "", province: str = "", town: str = "") -> str:
+    """'Town, Province, Country' from whichever levels were selected."""
+    return ", ".join(p.strip() for p in (town, province, country) if p and p.strip())
+
+
+def location_instruction(country: str = "", province: str = "", town: str = "") -> str:
+    """Scope-all-research-to-this-market directive; empty when no location chosen
+    (global research, prompts unchanged)."""
+    loc = location_phrase(country, province, town)
+    if not loc:
+        return ""
+    return (f"\n\nIMPORTANT — TARGET MARKET: Scope ALL research to {loc}. Find the "
+            f"products most likely to become popular specifically in this market: "
+            f"search local retailers, marketplaces, trend reports and news relevant "
+            f"to {loc}; judge demand, growth and competition for THIS market, not "
+            f"globally; use the local currency for pricing where possible; build "
+            f"personas from local consumers and profile competitors active in this "
+            f"market. Say explicitly in the report that the analysis is scoped to {loc}.")
+
+
+def build_lead_prompt(category: str, top: int, output_dir: str, lang: str = "en",
+                      country: str = "", province: str = "", town: str = "") -> str:
     """The lead agent's task brief. Single source of truth for the pipeline."""
     return f"""You lead a product-research team. Goal: find and predict the products
 most likely to become popular in the category: "{category}".
@@ -76,8 +97,10 @@ Run this pipeline using your subagents (delegate with the Task tool):
    (positioning, messaging, pricing, ad/marketing spend, strengths/gaps).
 5. Call the `predictor` subagent to turn the sub-scores into final 0-100
    opportunity scores (it must use the {TOOL_SCORE} tool) and rank them.
-6. Take the top {top} ranked products. Then call the `{TOOL_SAVE}` tool with:
-   category="{category}", output_dir="{output_dir}", and products=[...] where
+6. Take the top {top} ranked products. Then call the `{TOOL_SAVE}` tool — this
+   call is MANDATORY, before writing the report; a run that never calls it is a
+   FAILED run. Use: category="{category}" (EXACTLY this string, do not translate
+   or rephrase it), output_dir="{output_dir}", and products=[...] where
    each product is an object: name, score, verdict, rationale, evidence (a short
    source note or URL), sub_scores (the market-analyst's five 0-10 sub-scores:
    demand, growth, margin, competition, feasibility), and pricing (the
@@ -105,7 +128,8 @@ Finally, output a clean Markdown report to me with these sections:
 Be concrete and evidence-driven. Do not fabricate sources.
 
 (Supplier sourcing for the top products is handled by a separate agent — the
-`supplier_sourcer` package — which reads the predictions_*.json you save here.)""" + lang_instruction(lang)
+`supplier_sourcer` package — which reads the predictions_*.json you save here.)""" \
+        + location_instruction(country, province, town) + lang_instruction(lang)
 
 
 _DEFAULT_TOOLS = ["Task", "Agent", "WebSearch", TOOL_SCORE, TOOL_SAVE]
@@ -169,7 +193,9 @@ def _read_dotenv_value(key: str) -> str | None:
                     k, v = line.split("=", 1)
                     if k.strip() == key:
                         return v.strip().strip('"').strip("'")
-        except FileNotFoundError:
+        except OSError:
+            # Missing OR unreadable (e.g. permission denied) — never crash a
+            # request over a backstop lookup; fall through to the next candidate.
             continue
     return None
 
@@ -385,16 +411,21 @@ async def run_stream(
     model: str = "sonnet",
     force_env: dict | None = None,
     lang: str = "en",
+    country: str = "",
+    province: str = "",
+    town: str = "",
 ) -> AsyncIterator[dict]:
     """Run the pipeline, yielding UI events. If the primary (Anthropic) attempt
     hits a fatal API error such as a too-low credit balance, automatically
     retry the whole run via the LiteLLM proxy (when configured).
 
     force_env: when set (e.g. the "Run on Groq" button), route the WHOLE run
-    through the proxy from the start — no Anthropic call, no fallback."""
+    through the proxy from the start — no Anthropic call, no fallback.
+    country/province/town: optional target market — scopes all research."""
     output_dir = os.path.abspath(output_dir)
     os.makedirs(output_dir, exist_ok=True)
-    prompt = build_lead_prompt(category, top, output_dir, lang=lang)
+    prompt = build_lead_prompt(category, top, output_dir, lang=lang,
+                               country=country, province=province, town=town)
 
     yield {"type": "start", "category": category, "top": top, "model": model}
 
