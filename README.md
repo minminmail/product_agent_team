@@ -1,5 +1,30 @@
 # Product Researcher — two Claude Agent SDK teams
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## License — MIT
+
+This project is open source under the [MIT License](LICENSE), © 2026 Rui Min.
+
+You are free to **use, copy, modify, and sell** this code, including in
+commercial and closed-source products — no permission or contact needed.
+The one condition: **keep the copyright and license notice** in every copy or
+substantial portion of the code you distribute. Practically, that means
+including this in your LICENSE file, "open source notices" screen, or docs:
+
+```
+Copyright (c) 2026 Rui Min
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction... (see the full MIT text in LICENSE)
+```
+
+The software is provided "as is", without warranty of any kind.
+
+---
+
+
 Two **independent multi-agent teams** (Python + [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/python)) that work in sequence but are fully decoupled — each runs on its own:
 
 1. **`product_researcher`** — scans the **live market** with web search and predicts which products are likely to become popular in a category. Writes `predictions_<category>.json`.
