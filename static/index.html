@@ -1226,13 +1226,60 @@ async function geoFetch(path, body){
 }
 // Rebuild a location control in place. A <select> when we have names; a free
 // text <input> when the API has no data for that level (user can still type).
-function makeLocSelect(id, names, allKey){
+// `items` entries are either "name" or [value, label] — the value is always the
+// English API name (needed for the cascade + research prompts); the label is
+// shown in the UI language.
+function makeLocSelect(id, items, allKey){
   const old=document.getElementById(id), sel=document.createElement("select");
   sel.id=id; sel.title=old?old.title||"":"";
   sel.innerHTML=`<option value="">${esc(t(allKey))}</option>`+
-    names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    items.map(n=>{const [v,l]=Array.isArray(n)?n:[n,n];
+      return `<option value="${esc(v)}">${esc(l)}</option>`;}).join("");
   if(old) old.replaceWith(sel);
   return sel;
+}
+// Localized country names via the browser's own region database.
+function countryLabel(c){
+  const loc = LANG==="zh" ? "zh" : LANG==="es" ? "es" : "en";
+  try{
+    const l=new Intl.DisplayNames([loc],{type:"region"}).of(c.iso2);
+    if(l && l!==c.iso2) return l;
+  }catch(e){}
+  return c.name;
+}
+// Chinese labels for China's provinces (the geo API only has pinyin names).
+const CN_PROV_ZH={"Anhui":"安徽","Beijing":"北京","Chongqing":"重庆","Fujian":"福建",
+  "Gansu":"甘肃","Guangdong":"广东","Guangxi Zhuang Autonomous Region":"广西壮族自治区",
+  "Guizhou":"贵州","Hainan":"海南","Hebei":"河北","Heilongjiang":"黑龙江","Henan":"河南",
+  "Hong Kong":"香港","Hubei":"湖北","Hunan":"湖南","Inner Mongolia":"内蒙古",
+  "Jiangsu":"江苏","Jiangxi":"江西","Jilin":"吉林","Keelung":"基隆","Liaoning":"辽宁",
+  "Macau":"澳门","Ningxia Hui Autonomous Region":"宁夏回族自治区","Qinghai":"青海",
+  "Shaanxi":"陕西","Shandong":"山东","Shanghai":"上海","Shanxi":"山西","Sichuan":"四川",
+  "Taiwan Province, People's Republic of China":"台湾","Tibet Autonomous Region":"西藏自治区",
+  "Xinjiang":"新疆","Yunnan":"云南","Zhejiang":"浙江"};
+function provinceLabel(country, name){
+  if(LANG==="zh" && country==="China" && CN_PROV_ZH[name]) return CN_PROV_ZH[name];
+  return name;
+}
+// Cached API data so the dropdowns can be re-labelled on a language switch.
+let GEO_COUNTRIES=[];                     // [{name, iso2}]
+let GEO_STATES={country:"", names:[]};    // last fetched provinces
+function renderCountryOptions(){
+  const el=document.getElementById("country");
+  if(!GEO_COUNTRIES.length || !el || el.tagName!=="SELECT") return;
+  const cur=locValue("country");
+  const items=GEO_COUNTRIES.map(c=>[c.name, countryLabel(c)])
+    .sort((a,b)=>a[1].localeCompare(b[1], LANG==="zh"?"zh":LANG));
+  const sel=makeLocSelect("country", items, 'locGlobal');
+  if(cur) sel.value=cur;
+}
+function renderProvinceOptions(){
+  const el=document.getElementById("province");
+  const c=locValue("country");
+  if(!el || el.tagName!=="SELECT" || !GEO_STATES.names.length || GEO_STATES.country!==c) return;
+  const cur=locValue("province");
+  const sel=makeLocSelect("province", GEO_STATES.names.map(n=>[n, provinceLabel(c,n)]), 'locAllProv');
+  if(cur) sel.value=cur;
 }
 function makeLocInput(id, phKey){
   const old=document.getElementById(id), inp=document.createElement("input");
@@ -1246,7 +1293,8 @@ async function loadCountries(){
   const sel=makeLocSelect("country", [], 'locLoading'); sel.disabled=true;
   try{
     const data=await geoFetch("/positions");            // [{name, iso2, ...}]
-    makeLocSelect("country", data.map(c=>c.name).sort((a,b)=>a.localeCompare(b)), 'locGlobal');
+    GEO_COUNTRIES=data.filter(c=>c.name).map(c=>({name:c.name, iso2:c.iso2||""}));
+    renderCountryOptions();
   }catch(e){
     // Geo API down → free text everywhere; research still gets the location.
     makeLocInput("country",'tgtCountry'); makeLocInput("province",'tgtProvince');
@@ -1263,7 +1311,7 @@ async function onCountryChange(){
   try{
     const data=await geoFetch("/states", {country:c});
     const names=(data.states||[]).map(s=>s.name);
-    if(names.length) makeLocSelect("province", names, 'locAllProv');
+    if(names.length){ GEO_STATES={country:c, names}; renderProvinceOptions(); }
     else makeLocInput("province",'tgtProvince');        // no data → type it
   }catch(e){ makeLocInput("province",'tgtProvince'); }
 }
@@ -1940,12 +1988,17 @@ function applyLang(){
   $("#lblCat").textContent=t('cat'); $("#cat").placeholder=t('catPh');
   $("#lblCountry").textContent=t('tgtCountry'); $("#lblProvince").textContent=t('tgtProvince');
   $("#lblTown").textContent=t('tgtTown');
-  // Re-label the "all/global" first option of each location select in-place.
-  for(const [id,key] of [["country",'locGlobal'],["province",'locAllProv'],["town",'locAllTowns']]){
+  // Location dropdowns: re-render country/province labels in the new language
+  // (values stay the English API names); towns have no translations — just
+  // re-label the "all" option. Free-text fallbacks get localized placeholders.
+  renderCountryOptions(); renderProvinceOptions();
+  for(const [id,key,ph] of [["country",'locGlobal','tgtCountry'],
+                            ["province",'locAllProv','tgtProvince'],
+                            ["town",'locAllTowns','tgtTown']]){
     const el=document.getElementById(id);
     if(el && el.tagName==="SELECT" && el.options.length && el.options[0].value==="")
       el.options[0].textContent=t(key);
-    if(el && el.tagName==="INPUT") el.placeholder=t(key==='locGlobal'?'tgtCountry':key==='locAllProv'?'tgtProvince':'tgtTown');
+    if(el && el.tagName==="INPUT") el.placeholder=t(ph);
   }
   $("#lblTop").textContent=t('topN'); $("#lblRunMode").textContent=t('runMode');
   $("#paidPh").textContent=t('paidPh'); $("#freePh").textContent=t('freePh');

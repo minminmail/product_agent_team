@@ -42,6 +42,17 @@ from .tools import TOOL_SAVE, TOOL_SCORE, research_tools_server
 LANG_NAMES = {"en": "English", "zh": "Simplified Chinese (简体中文)", "es": "Spanish (Español)"}
 
 
+# Translated section/heading names, so the model never keeps the English
+# literals that the task briefs use to describe the report structure.
+_SECTION_NAMES = {
+    "zh": ("执行摘要 / 产品图片 / 各产品评分与定价 / 受众与用户画像 / 竞争格局 / "
+           "方法与注意事项；表头如：排名 | 产品 | 得分 | 评价 | 价格 | 理由"),
+    "es": ("Resumen ejecutivo / Imágenes de producto / Puntuaciones y precios por producto / "
+           "Audiencia y personas / Panorama competitivo / Metodología y salvedades; "
+           "cabeceras de tabla como: Puesto | Producto | Puntuación | Veredicto | Precio | Por qué"),
+}
+
+
 def lang_instruction(lang: str | None) -> str:
     """An instruction telling the agents to produce their report in `lang`.
     Empty for English/unknown so existing prompts are unchanged."""
@@ -49,10 +60,17 @@ def lang_instruction(lang: str | None) -> str:
     name = LANG_NAMES.get(lang)
     if not name or lang == "en":
         return ""
-    return (f"\n\nIMPORTANT — OUTPUT LANGUAGE: Write ALL user-facing output — the final "
-            f"Markdown report, every heading, table header, verdict, rationale and prose — "
-            f"in {name}. Product/brand names may stay in their original language. "
-            f"Keep tool names and JSON field KEYS in English (translate field values).")
+    sections = _SECTION_NAMES.get(lang, "")
+    return (f"\n\n!!! MANDATORY OUTPUT LANGUAGE: {name} !!!\n"
+            f"EVERY word of user-facing output MUST be written in {name}: the entire "
+            f"Markdown report, ALL section headings, ALL table headers, verdicts, "
+            f"rationales, persona names, competitor notes and prose. Even though this "
+            f"brief and the research context are in English, do NOT copy English "
+            f"headings or sentences into the report — translate everything. "
+            + (f"Use these section names: {sections}. " if sections else "")
+            + f"Only product/brand proper names, URLs, tool names and JSON field KEYS "
+            f"stay in their original form (JSON field VALUES must be in {name}). "
+            f"A report that mixes English prose or English headings is a FAILED report.")
 
 
 def location_phrase(country: str = "", province: str = "", town: str = "") -> str:
